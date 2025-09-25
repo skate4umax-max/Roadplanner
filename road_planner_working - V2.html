@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="he">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Road Planner — v4</title>
+<style>
+:root{
+  --dark-blue:#0A1F44; --mid-blue:#142A5C; --white:#FFFFFF; --black:#000000; --muted:#BFD6FF;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Segoe UI, Tahoma, Arial, sans-serif;background:var(--dark-blue);color:var(--white);-webkit-font-smoothing:antialiased}
+header{background:var(--black);padding:12px 14px;text-align:center;font-weight:700}
+.container{max-width:980px;margin:14px auto;padding:12px;width:94%}
+.card{background:var(--mid-blue);border-radius:10px;padding:14px;box-shadow:0 6px 22px rgba(0,0,0,0.35)}
+.tabs{display:flex;gap:8px;margin-bottom:12px}
+.tab{flex:1;padding:10px;border-radius:8px;text-align:center;cursor:pointer;border:1px solid rgba(255,255,255,0.06)}
+.tab.active{background:var(--black)}
+textarea{width:100%;height:120px;border-radius:8px;border:none;padding:10px;font-size:0.95rem;resize:vertical;background:#fff;color:#000}
+.controls{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+button{padding:10px;border-radius:8px;border:none;background:var(--black);color:var(--white);font-weight:700;cursor:pointer}
+button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.08)}
+.small{font-size:0.9rem;color:var(--muted);margin-top:8px}
+#mapSmall{width:100%;height:200px;border-radius:8px;margin-top:12px;display:none}
+#mapFull{width:100%;height:420px;border-radius:8px;margin-top:12px;display:none}
+table{width:100%;border-collapse:collapse;margin-top:12px;background:#fff;color:#000;border-radius:8px;overflow:hidden}
+th,td{padding:8px;text-align:left;border-bottom:1px solid #eee;font-size:0.92rem}
+th{background:#f6f6f6;font-weight:700}
+select.status-select{padding:6px;border-radius:6px;border:1px solid #ccc;width:100%}
+row-actions{display:flex;gap:6px}
+.banner{position:fixed;left:12px;right:12px;bottom:16px;z-index:9999;display:none;padding:12px;border-radius:10px;background:#fff;color:#000;box-shadow:0 8px 24px rgba(0,0,0,0.4);align-items:center;justify-content:space-between}
+.banner a{background:#0A1F44;color:#fff;padding:8px 10px;border-radius:8px;text-decoration:none;font-weight:700}
+@media(max-width:720px){#mapFull{height:260px} #mapSmall{height:160px} textarea{height:110px}}
+</style>
+</head>
+<body>
+<header>Road Planner — v4</header>
+<div class="container">
+  <div class="card">
+    <div class="tabs" role="tablist">
+      <div id="tabInput" class="tab active">קליטת נתונים</div>
+      <div id="tabPlan" class="tab">מפה &amp; תכנון</div>
+    </div>
+
+    <!-- INPUT -->
+    <div id="viewInput">
+      <div class="small">הדבק כאן הודעות SMS — שורה ריקה בין הודעות. אל תדביק JSON/קוד.</div>
+      <textarea id="smsInput" placeholder="הדבק SMS כאן..."></textarea>
+      <div class="controls">
+        <button id="btnParse">Parse &amp; Build Profiles (כל ההודעות בו-זמנית)</button>
+        <button id="btnClear" class="secondary">נקה פרופילים</button>
+        <button id="btnLoadEx" class="secondary">Load Examples (לבדיקה בלבד)</button>
+      </div>
+      <div class="small">לאחר יצירת הפרופילים — עבור ללשונית 'מפה &amp; תכנון' ולחץ 'חשב מסלול'.</div>
+    </div>
+
+    <!-- PLAN -->
+    <div id="viewPlan" style="display:none">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button id="btnCompute">חשב מסלול לפי קרבה (Nearest-Neighbor)</button>
+        <button id="btnRecompute" class="secondary">חשב מחדש</button>
+        <button id="btnOpenGoogle" class="secondary">פתח ב-Google Maps</button>
+        <button id="btnOpenApple" class="secondary">פתח ב-Apple Maps</button>
+        <div style="flex:1" class="small">התחלה = מיקום נוכחי. אשר שיתוף מיקום/התראות. המפה נטענת רק בלשונית זו.</div>
+      </div>
+
+      <!-- small preview map -->
+      <div id="mapSmall"></div>
+      <!-- full map (shown after compute) -->
+      <div id="mapFull"></div>
+
+      <table id="profilesTable" aria-live="polite">
+        <thead><tr><th>#</th><th>שם</th><th>טלפון</th><th>כתובת</th><th>ETA</th><th>סטטוס</th></tr></thead>
+        <tbody id="profilesBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="banner" class="banner"><div id="btxt"></div><div><a id="bcall" href="#">התקשר</a><button id="bclose" style="margin-left:8px;padding:8px;border-radius:8px">סגור</button></div></div>
+
+<script>
+/* --------------------- Configuration & state --------------------- */
+const STORAGE_KEY = 'road_planner_profiles_v4';
+let profiles = []; // {id,name,phone,address,raw,status,eta}
+let mapsLoaded = false;
+let mapSmall = null, mapFull = null, directionsService = null, directionsRenderer = null, markers = [];
+let distanceMatrixService = null;
+let notifTimers = {}, computeThrottle=0;
+let lastOrderedForOpen = null;
+
+/* --------------------- UI refs --------------------- */
+const tabInput = document.getElementById('tabInput'), tabPlan = document.getElementById('tabPlan');
+const viewInput = document.getElementById('viewInput'), viewPlan = document.getElementById('viewPlan');
+const smsInput = document.getElementById('smsInput');
+const btnParse = document.getElementById('btnParse'), btnClear = document.getElementById('btnClear'), btnLoadEx = document.getElementById('btnLoadEx');
+const btnCompute = document.getElementById('btnCompute'), btnRecompute = document.getElementById('btnRecompute'), btnOpenGoogle = document.getElementById('btnOpenGoogle'), btnOpenApple = document.getElementById('btnOpenApple');
+const profilesBody = document.getElementById('profilesBody');
+const mapSmallEl = document.getElementById('mapSmall'), mapFullEl = document.getElementById('mapFull');
+const banner = document.getElementById('banner'), btxt = document.getElementById('btxt'), bcall = document.getElementById('bcall'), bclose = document.getElementById('bclose');
+
+tabInput.onclick = ()=>switchTo('input'); tabPlan.onclick = ()=>switchTo('plan');
+function switchTo(v){ if(v==='input'){ tabInput.classList.add('active'); tabPlan.classList.remove('active'); viewInput.style.display='block'; viewPlan.style.display='none'; stopAuto(); } else { tabInput.classList.remove('active'); tabPlan.classList.add('active'); viewInput.style.display='none'; viewPlan.style.display='block'; ensureMapsLoaded().then(()=>{ startAuto(); renderTable(); }).catch(err=>{ alert('לא ניתן לטעון מפות: ' + err.message); }); } }
+
+/* --------------------- Storage --------------------- */
+function loadProfiles(){ profiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+function saveProfiles(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles)); }
+
+/* --------------------- Parsing --------------------- */
+function looksLikeJSON(s){ if(!s) return false; const t = s.trim(); return t.startsWith('{') || t.startsWith('[') || t.includes('localStorage.setItem') || /\b"id"\s*:\s*/.test(t); }
+
+function parseBatch(text){
+  if(!text || !text.trim()) return [];
+  if(looksLikeJSON(text)){ alert('נראה שהדבקת JSON/קוד במקום הודעות SMS. השתמש ב־Load Examples אם רצית להכניס דוגמאות בדיקה.'); return []; }
+  // split by double-newline OR by "New job" marker
+  const parts = text.split(/\n{2,}|\r\n\r\n/).map(p=>p.trim()).filter(Boolean);
+  const out = [];
+  parts.forEach(p=>{
+    const lines = p.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+    if(lines.length<2) return;
+    // find phone
+    const phoneLine = lines.find(l=>/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/.test(l)) || '';
+    const phone = phoneLine ? phoneLine.replace(/[^\d]/g,'') : '';
+    // find addr: line with number and street-like word
+    const addr = lines.find(l=>/\d+/.test(l) && /\b(St|Dr|Rd|Ave|Blvd|Ln|Cir|Way|Court|Place|Lane|Drive|Road|Terrace|Circle)\b/i.test(l)) 
+                 || lines[2] || '';
+    // name: first line likely alpha-only
+    let name = lines.find(l=>!/\d/.test(l) && /^[\p{L}\.\-'\s]+$/u.test(l)) || lines[1] || lines[0];
+    out.push({ id: 'p_'+Math.random().toString(36).slice(2,9), name: (name||'').trim(), phone, address: addr, raw: p, status:'pending', eta:null });
+  });
+  return out;
+}
+
+/* --------------------- UI actions --------------------- */
+btnParse.onclick = ()=>{
+  const txt = smsInput.value;
+  const parsed = parseBatch(txt);
+  if(parsed.length===0) return;
+  loadProfiles();
+  let added = 0;
+  parsed.forEach(p=>{
+    if(!profiles.some(x=>x.raw === p.raw)){
+      profiles.push(p); added++;
+    }
+  });
+  saveProfiles(); renderTable(); alert('נוספו פרופילים: ' + added);
+};
+btnClear.onclick = ()=>{ if(confirm('מחק את כל הפרופילים מהדפדפן?')){ profiles=[]; saveProfiles(); renderTable(); } };
+btnLoadEx.onclick = ()=>{
+  // manual sample load (user control)
+  const sample = [
+    {"id":"ex1","name":"Joe Biluck","phone":"8569002586","address":"510 Leon Ave, Delran, New Jersey 08075","raw":"s1","status":"pending","eta":null},
+    {"id":"ex2","name":"Molly Hughes","phone":"6178726750","address":"225 Crystal Lake Ave, Audubon, New Jersey 08106","raw":"s2","status":"pending","eta":null},
+    {"id":"ex3","name":"Justin Ukrainski","phone":"6097600432","address":"7 Liberty Cir, Shamong, New Jersey 08088","raw":"s3","status":"pending","eta":null},
+    {"id":"ex4","name":"Janel Manella","phone":"8562870172","address":"132 N Woodstock Dr, Cherry Hill Township, New Jersey 08034","raw":"s4","status":"pending","eta":null},
+    {"id":"ex5","name":"Thomas Milewski","phone":"6096801018","address":"25 Lantern Ln, Cherry Hill Township, New Jersey 08002","raw":"s5","status":"pending","eta":null}
+  ];
+  loadProfiles(); sample.forEach(s=>{ if(!profiles.some(p=>p.raw===s.raw)) profiles.push(s); }); saveProfiles(); renderTable(); alert('טעינת דוגמאות בוצעה.');
+};
+
+/* --------------------- Render table --------------------- */
+function renderTable(){
+  loadProfiles();
+  profilesBody.innerHTML = '';
+  profiles.forEach((p, idx) => {
+    const tr = document.createElement('tr');
+    const tdNum = document.createElement('td'); tdNum.textContent = idx+1;
+    const tdName = document.createElement('td'); tdName.textContent = p.name || '-';
+    const tdPhone = document.createElement('td'); 
+    if(p.phone){ const a = document.createElement('a'); a.href='tel:'+p.phone; a.textContent = formatPhone(p.phone); a.style.color='#0A1F44'; tdPhone.appendChild(a); } else tdPhone.textContent='-';
+    const tdAddr = document.createElement('td'); tdAddr.textContent = p.address || '-';
+    const tdEta = document.createElement('td'); tdEta.textContent = p.eta ? new Date(p.eta).toLocaleTimeString() : '-';
+    const tdStatus = document.createElement('td'); const sel = document.createElement('select'); sel.className='status-select';
+    [['pending','ממתין'],['enroute','בדרך'],['done','בוצע'],['canceled','בוטל']].forEach(([val,label])=>{ const opt=document.createElement('option'); opt.value=val; opt.textContent=label; if(p.status===val) opt.selected=true; sel.appendChild(opt); });
+    sel.onchange = ()=>{ p.status = sel.value; saveProfiles(); if(p.status==='canceled') computeAndOrderByNearest(); renderTable(); };
+    tdStatus.appendChild(sel);
+    tr.appendChild(tdNum); tr.appendChild(tdName); tr.appendChild(tdPhone); tr.appendChild(tdAddr); tr.appendChild(tdEta); tr.appendChild(tdStatus);
+    profilesBody.appendChild(tr);
+  });
+}
+
+/* --------------------- Maps loader (safe & single) --------------------- */
+function ensureMapsLoaded(){
+  if(mapsLoaded) return Promise.resolve();
+  return new Promise((resolve, reject)=>{
+    // detect sandboxed iframe early
+    try{
+      if(window.frameElement && window.frameElement.hasAttribute && window.frameElement.hasAttribute('sandbox')){
+        console.warn('iframe sandbox detected; geolocation and script execution might be restricted.');
+      }
+    }catch(e){}
+    // if already loaded by other script
+    if(window.google && window.google.maps){ mapsLoaded = true; initMaps(); return resolve(); }
+    // create callback globally once
+    window.__rp_init_maps = function(){ mapsLoaded = true; initMaps(); resolve(); };
+    const s = document.createElement('script');
+    s.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyCsqO--dNCWcsxFHzCiECU-MRHOZxhEXyY&callback=__rp_init_maps&libraries=places';
+    s.async = true; s.defer = true;
+    s.onerror = ()=>reject(new Error('Failed to load Google Maps API')); 
+    document.head.appendChild(s);
+    // safety: timeout
+    setTimeout(()=>{ if(!mapsLoaded) console.warn('Maps load taking long...'); }, 8000);
+  });
+}
+
+function initMaps(){
+  try{
+    // small preview map
+    if(!mapSmall){
+      mapSmall = new google.maps.Map(mapSmallEl, { center:{lat:40.0,lng:-74.5}, zoom:10, disableDefaultUI:true });
+    }
+    // full map
+    if(!mapFull){
+      mapFull = new google.maps.Map(mapFullEl, { center:{lat:40.0,lng:-74.5}, zoom:11, disableDefaultUI:false });
+      directionsService = new google.maps.DirectionsService();
+      directionsRenderer = new google.maps.DirectionsRenderer({ map: mapFull, suppressMarkers:true });
+      distanceMatrixService = new google.maps.DistanceMatrixService();
+    }
+  }catch(e){
+    console.error('initMaps error', e);
+  }
+}
+
+/* --------------------- Compute ordering by nearest neighbor using Distance Matrix --------------------- */
+async function computeAndOrderByNearest(){
+  loadProfiles();
+  const active = profiles.filter(p=>p.status!=='canceled' && p.address);
+  if(active.length===0){ alert('אין נקודות פעילות לחישוב.'); return; }
+
+  // ensure maps are ready
+  try{ await ensureMapsLoaded(); } catch(e){ alert('Maps load failed: ' + e.message); return; }
+
+  // get current position
+  let pos;
+  try{
+    pos = await new Promise((res, rej)=> navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lng:p.coords.longitude}), err=>rej(err.message || 'permission denied'), {enableHighAccuracy:false, timeout:10000}));
+  }catch(err){
+    alert('לא ניתן לקבל מיקום: ' + err);
+    return;
+  }
+
+  // prepare origins/destinations for Matrix: pos + active addresses
+  // we'll call DistanceMatrix with origins = [pos] and destinations = all addresses to get travel times from current to each
+  const destAddrs = active.map(a=>a.address);
+  const origins = [new google.maps.LatLng(pos.lat, pos.lng)];
+  try{
+    const matrixRes = await new Promise((res, rej)=>{
+      distanceMatrixService.getDistanceMatrix({
+        origins: origins,
+        destinations: destAddrs,
+        travelMode: 'DRIVING',
+        drivingOptions: { departureTime: new Date(), trafficModel: 'bestguess' },
+        unitSystem: google.maps.UnitSystem.IMPERIAL,
+        avoidTolls: false
+      }, (response, status)=>{
+        if(status==='OK') res(response); else rej(new Error(status));
+      });
+    });
+
+    // build durations array from origin (current) to each destination
+    const elements = matrixRes.rows[0].elements; // corresponds to destAddrs
+    // If any element has status NOT_OK, set large duration
+    const fromCurrent = elements.map((el,i)=>({ idx:i, dur: (el && el.status==='OK' && el.duration_in_traffic)? el.duration_in_traffic.value : ((el && el.status==='OK' && el.duration)?el.duration.value: 999999)}));
+
+    // We'll then compute full matrix between stops to run greedy (we need distances between stops).
+    // Build full matrix: origins = destinations = destAddrs
+    const fullMatrix = await new Promise((res, rej)=>{
+      distanceMatrixService.getDistanceMatrix({
+        origins: destAddrs,
+        destinations: destAddrs,
+        travelMode: 'DRIVING',
+        drivingOptions: { departureTime: new Date(), trafficModel: 'bestguess' },
+        unitSystem: google.maps.UnitSystem.IMPERIAL
+      }, (response, status)=>{
+        if(status==='OK') res(response); else rej(new Error(status));
+      });
+    });
+
+    // transform matrix to durations (sec)
+    const N = active.length;
+    const durMatrix = Array.from({length:N}, ()=>Array(N).fill(999999));
+    for(let i=0;i<N;i++){
+      for(let j=0;j<N;j++){
+        const el = fullMatrix.rows[i].elements[j];
+        durMatrix[i][j] = (el && el.status==='OK' && (el.duration_in_traffic ? el.duration_in_traffic.value : el.duration.value)) || 999999;
+      }
+    }
+
+    // Greedy nearest-neighbor route:
+    // startIndex = index of nearest to current pos
+    fromCurrent.sort((a,b)=>a.dur-b.dur);
+    const startIdx = fromCurrent[0].idx;
+    const visited = new Set([startIdx]);
+    const order = [startIdx];
+    let cur = startIdx;
+    while(order.length < N){
+      // find nearest unvisited from cur
+      let best = -1, bestv = 1e12;
+      for(let k=0;k<N;k++){
+        if(visited.has(k)) continue;
+        if(durMatrix[cur][k] < bestv){ bestv = durMatrix[cur][k]; best = k; }
+      }
+      if(best===-1) break;
+      visited.add(best); order.push(best); cur = best;
+    }
+
+    const orderedProfiles = order.map(i=>active[i]);
+
+    // now we have orderedProfiles array from nearest-first
+    // Save ordering back into main profiles array (replacing order of active elements)
+    // We'll create new array: keep canceled ones in place? requirement said: reorder list by distance - so we'll replace active sequence with orderedProfiles at top positions
+    // Simpler: place orderedProfiles first, then others (canceled/without address) after
+    const others = profiles.filter(p=>p.status==='canceled' || !p.address || !active.includes(p));
+    profiles = [...orderedProfiles, ...others];
+    saveProfiles(); renderTable();
+
+    // now compute precise Directions route following this order using DirectionsService:
+    computeDirectionsFromOrder(pos, orderedProfiles);
+    lastOrderedForOpen = { originPos: pos, orderedProfiles: orderedProfiles };
+  }catch(err){
+    console.error(err); alert('שגיאה בזמן חישוב מרחקים: ' + (err.message || err));
+  }
+}
+
+/* --------------------- Directions (draw route & compute ETA) --------------------- */
+function computeDirectionsFromOrder(originPos, orderedProfiles){
+  if(!orderedProfiles || orderedProfiles.length===0) return;
+  // build waypoints: all except last
+  const addresses = orderedProfiles.map(p=>p.address);
+  if(addresses.length===1){
+    const req = { origin: originPos, destination: addresses[0], travelMode:'DRIVING', drivingOptions:{departureTime:new Date(),trafficModel:'bestguess'} };
+    directionsService.route(req, (res,status)=>{
+      if(status==='OK'){ directionsRenderer.setDirections(res); processLegsToProfiles(res, [orderedProfiles[0]]); placeMarkersOnMap(res, [orderedProfiles[0]]); }
+      else{ console.error('Directions err',status,res); alert('Directions failed: ' + status); }
+    });
+    return;
+  }
+  const waypoints = addresses.slice(0,-1).map(a=>({ location: a, stopover: true }));
+  const destination = addresses[addresses.length-1];
+  const req = { origin: originPos, destination, waypoints, optimizeWaypoints:false, travelMode:'DRIVING', drivingOptions:{departureTime:new Date(),trafficModel:'bestguess'} };
+  directionsService.route(req, (res,status)=>{
+    if(status==='OK'){ directionsRenderer.setDirections(res); processLegsToProfiles(res, orderedProfiles); placeMarkersOnMap(res, orderedProfiles); }
+    else{ console.error('Directions err',status,res); alert('Directions failed: ' + status); }
+  });
+}
+
+function processLegsToProfiles(directionsResult, orderedProfiles){
+  // legs count should equal orderedProfiles.length
+  const legs = directionsResult.routes[0].legs;
+  let cumMs = 0;
+  for(let i=0;i<legs.length;i++){
+    const leg = legs[i];
+    const dur = leg.duration_in_traffic ? leg.duration_in_traffic.value : leg.duration.value;
+    cumMs += dur*1000;
+    if(orderedProfiles[i]) orderedProfiles[i].eta = Date.now() + cumMs;
+  }
+  // write back to profiles global
+  orderedProfiles.forEach(op=>{
+    const idx = profiles.findIndex(p=>p.raw === op.raw || (p.name===op.name && p.address===op.address));
+    if(idx>=0) profiles[idx].eta = op.eta;
+  });
+  saveProfiles(); renderTable(); scheduleNotifications();
+}
+
+/* --------------------- markers --------------------- */
+function clearMarkers(){ markers.forEach(m=>m.setMap(null)); markers = []; }
+function placeMarkersOnMap(directionsResult, orderedProfiles){
+  clearMarkers();
+  const legs = directionsResult.routes[0].legs;
+  for(let i=0;i<legs.length;i++){
+    const endLoc = legs[i].end_location;
+    const prof = orderedProfiles[i];
+    const marker = new google.maps.Marker({ position: endLoc, label: String(i+1), map: mapFull });
+    const inf = new google.maps.InfoWindow({ content: `<div style="font-weight:700">${escapeHtml(prof.name)}</div><div>${escapeHtml(prof.address)}</div><div style="margin-top:6px"><a href="tel:${prof.phone}">התקשר</a></div>` });
+    marker.addListener('click', ()=>inf.open(mapFull, marker));
+    markers.push(marker);
+  }
+  // fit bounds
+  const bounds = new google.maps.LatLngBounds();
+  markers.forEach(m=>bounds.extend(m.getPosition()));
+  mapFull.fitBounds(bounds, 80);
+  mapFullEl.style.display = 'block';
+  mapSmallEl.style.display = 'block';
+}
+
+/* --------------------- Notifications scheduling --------------------- */
+function clearAllNotifTimers(){ Object.values(notifTimers).forEach(t=>clearTimeout(t)); notifTimers={}; }
+function scheduleNotifications(){
+  clearAllNotifTimers();
+  profiles.filter(p=>p.eta && p.status!=='canceled' && p.status!=='done').forEach(p=>{
+    const notifyAt = p.eta - 30*60*1000;
+    const ms = notifyAt - Date.now();
+    if(ms>0){
+      notifTimers[p.id] = setTimeout(()=>{ triggerNotification(p); }, ms);
+    }
+  });
+}
+
+function triggerNotification(p){
+  // native if allowed
+  if('Notification' in window && Notification.permission === 'granted'){
+    try{ new Notification('Road Planner — 30 דק׳ עד הגעה', { body: `${p.name} • ${p.address}\nETA: ${new Date(p.eta).toLocaleTimeString()}` }); } catch(e){ console.error(e); }
+  }
+  // in-page banner
+  btxt.textContent = `${p.name} — ${p.address} • ETA: ${new Date(p.eta).toLocaleTimeString()}`;
+  bcall.href = 'tel:' + (p.phone || '');
+  banner.style.display = 'flex';
+  setTimeout(()=>banner.style.display = 'none', 3*60*1000);
+}
+bclose.onclick = ()=>banner.style.display = 'none';
+
+/* --------------------- Open in external Maps --------------------- */
+btnOpenGoogle.onclick = ()=>{
+  if(!lastOrderedForOpen){ alert('חשב מסלול קודם כדי לפתוח ב-Google Maps'); return; }
+  const { originPos, orderedProfiles } = lastOrderedForOpen;
+  const origin = `${originPos.lat},${originPos.lng}`;
+  const dest = encodeURIComponent(orderedProfiles[orderedProfiles.length-1].address);
+  const waypoints = orderedProfiles.slice(0,-1).map(p=>encodeURIComponent(p.address)).join('|');
+  const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${waypoints?('&waypoints='+waypoints):''}&travelmode=driving`;
+  window.open(url, '_blank');
+};
+btnOpenApple.onclick = ()=>{
+  if(!lastOrderedForOpen){ alert('חשב מסלול קודם כדי לפתוח ב-Apple Maps'); return; }
+  const { originPos, orderedProfiles } = lastOrderedForOpen;
+  const start = `${originPos.lat},${originPos.lng}`;
+  const end = encodeURIComponent(orderedProfiles[orderedProfiles.length-1].address);
+  // Apple maps supports multiple via 'dirflg' and daddr with waypoints separated by '+to:'
+  let url = `http://maps.apple.com/?saddr=${start}&daddr=${end}&dirflg=d`;
+  window.open(url, '_blank');
+};
+
+/* --------------------- Utilities --------------------- */
+function formatPhone(p){ if(!p) return ''; return p.replace(/(\d{3})(\d{3})(\d{4})/,'($1) $2-$3'); }
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+/* --------------------- Auto scheduling and visibility handling --------------------- */
+let autoInterval = null;
+function startAuto(){ if(autoInterval) return; if('Notification' in window && Notification.permission !== 'granted'){ Notification.requestPermission().then(()=>{}); } computeAndOrderByNearest(); autoInterval = setInterval(()=>{ if(!document.hidden) computeAndOrderByNearest(); }, 60*1000); }
+function stopAuto(){ if(autoInterval){ clearInterval(autoInterval); autoInterval=null; } }
+
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) stopAuto(); else if(tabPlan.classList.contains('active')) startAuto(); });
+
+/* --------------------- Init & wiring --------------------- */
+loadProfiles(); renderTable();
+btnCompute.onclick = ()=>computeAndOrderByNearest();
+btnRecompute.onclick = ()=>computeAndOrderByNearest();
+
+/* --------------------- End of script --------------------- */
+</script>
+</body>
+</html>
