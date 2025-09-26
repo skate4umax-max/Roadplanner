@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>Road Planner — v14</title>
+<!-- Favicon and mobile home screen icons -->
+<link rel="icon" href="https://storage.googleapis.com/gweb-uniblog-publish-prod/images/Gemini_Generated_Image_6wgyvo6wgyvo6wgy.width-1000.png" sizes="32x32" type="image/png">
+<link rel="icon" href="https://storage.googleapis.com/gweb-uniblog-publish-prod/images/Gemini_Generated_Image_6wgyvo6wgyvo6wgy.width-1000.png" sizes="16x16" type="image/png">
+<link rel="apple-touch-icon" href="https://storage.googleapis.com/gweb-uniblog-publish-prod/images/Gemini_Generated_Image_6wgyvo6wgyvo6wgy.width-1000.png" sizes="180x180">
+<meta name="theme-color" content="#0A1F44">
+<style>
+:root{
+  --dark-blue:#0A1F44; --mid-blue:#142A5C; --white:#FFFFFF; --black:#000000; --muted:#BFD6FF;
+  --red:#FF4C4C; --green:#28a745; --orange:#fd7e14;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Segoe UI, Tahoma, Arial, sans-serif;background:var(--dark-blue);color:var(--white);-webkit-font-smoothing:antialiased;direction:rtl;
+    overflow-x: hidden;
+}
+header{background:var(--black);padding:12px 14px;text-align:center;font-weight:700}
+.container{max-width:980px;margin:14px auto;padding:12px;width:94%}
+.card{background:var(--mid-blue);border-radius:10px;padding:14px;box-shadow:0 6px 22px rgba(0,0,0,0.35);display:flex;flex-direction:column;gap:12px}
+textarea, input[type="text"]{width:100%;border-radius:8px;border:none;padding:10px;font-size:0.95rem;resize:vertical;background:#fff;color:#000}
+.controls{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+button{padding:10px 12px;border-radius:8px;border:none;background:var(--black);color:var(--white);font-weight:700;cursor:pointer;transition:background-color 0.2s}
+button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.08)}
+button:hover{background:var(--mid-blue)}
+.small{font-size:0.9rem;color:var(--muted);margin-top:8px}
+#mapSmall{width:100%;height:200px;border-radius:8px;margin-top:12px;display:none}
+#mapFull{width:100%;height:420px;border-radius:8px;margin-top:12px;display:none}
+/* Table styling for better mobile view */
+.table-container {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+}
+table{width:100%;border-collapse:collapse;margin-top:12px;background:#fff;color:#000;border-radius:10px;overflow:hidden;
+    min-width: 600px; /* Adjust as needed */
+}
+th,td{padding:10px;text-align:right;border-bottom:1px solid #eee;font-size:0.92rem;
+    white-space: normal;
+}
+th{background:#f6f6f6;font-weight:700; color: #444;}
+.status-select{padding:6px;border-radius:6px;border:1px solid #ccc;width:100%}
+.status-pending{background-color: var(--orange); color: white;}
+.status-enroute{background-color: var(--dark-blue); color: white;}
+.status-done{background-color: var(--green); color: white;}
+.status-canceled{background-color: var(--red); color: white;}
+.row-actions{display:flex;gap:6px;flex-direction:column;align-items:flex-end}
+.banner{position:fixed;left:12px;right:12px;bottom:16px;z-index:9999;display:none;padding:12px;border-radius:10px;background:#fff;color:#000;box-shadow:0 8px 24px rgba(0,0,0,0.4);align-items:center;justify-content:space-between}
+.banner a{background:#0A1F44;color:#fff;padding:8px 10px;border-radius:8px;text-decoration:none;font-weight:700}
+.modal{display:none;position:fixed;z-index:10000;left:0;top:0;width:100%;height:100%;overflow:auto;background-color:rgba(0,0,0,0.4);padding-top:60px}
+.modal-content{background-color:var(--white);margin:10% auto;padding:20px;border-radius:10px;width:90%;max-width:400px;box-shadow:0 5px 15px rgba(0,0,0,0.5);color:var(--black);position:relative}
+.modal-content p{margin:0 0 15px}
+.modal-content .close-button{color:#aaa;font-size:28px;font-weight:bold;position:absolute;top:10px;left:15px;cursor:pointer}
+.modal-content .close-button:hover,.modal-content .close-button:focus{color:#000;text-decoration:none;cursor:pointer}
+.alert-buttons{display:flex;justify-content:flex-end;gap:10px}
+.loading-spinner{border:2px solid #fff;border-top-color:transparent;border-radius:50%;width:16px;height:16px;animation:spin 1s linear infinite;margin-right:8px;display:inline-block;vertical-align:middle;display:none}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.button-with-spinner{display:flex;align-items:center;justify-content:center}
+.start-button {padding: 6px 8px; border-radius: 6px; background: #FFC107; color: #000; font-weight: 600; font-size: 0.8rem;}
+#toggleViewBtn { margin-top: 10px; display: block; width: 100%; }
+@media(max-width:720px){
+  #mapFull{height:260px}
+  #mapSmall{height:160px}
+  textarea{height:110px}
+  button{width:100%}
+  .controls, .row-actions {flex-direction:column;align-items:stretch}
+  .row-actions button{width:auto}
+  .controls button.secondary{margin-top:4px}
+  #viewPlan .small{margin-top:4px}
+  .status-select {margin-top:8px}
+  .start-button {width:100%;}
+  .modal-content{width:95%}
+}
+</style>
+<!-- Google Maps API script -->
+<script>
+window.initMaps = function() {
+  mapsLoaded = true;
+  directionsService = new google.maps.DirectionsService();
+  directionsRenderer = new google.maps.DirectionsRenderer();
+  distanceMatrixService = new google.maps.DistanceMatrixService();
+  mapSmall = new google.maps.Map(document.getElementById('mapSmall'), { zoom: 12, center: { lat: 31.0461, lng: 34.8516 } });
+  mapFull = new google.maps.Map(document.getElementById('mapFull'), { zoom: 12, center: { lat: 31.0461, lng: 34.8516 } });
+  directionsRenderer.setMap(mapFull);
+  
+  // Initialize Autocomplete for the start address input
+  const autocomplete = new google.maps.places.Autocomplete(startAddressInput);
+};
+</script>
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDBR5nU2qACdPVqu6aLK0n6Bb1VCnix4eA&callback=initMaps&loading=async&libraries=places"></script>
+</head>
+<body>
+<header>Road Planner — v14</header>
+<div class="container">
+  <div class="card">
+    <!-- INPUT -->
+    <div id="viewInput">
+      <div class="small">הדבק כאן הודעות SMS — שורה ריקה בין הודעות. אל תדביק JSON/קוד.</div>
+      <textarea id="smsInput" placeholder="הדבק SMS כאן..."></textarea>
+      <div class="controls">
+        <button id="btnParseAndSwitch">טעינת מידע ומעבר לתכנון</button>
+        <button id="btnClear" class="secondary">נקה פרופילים</button>
+      </div>
+    </div>
+    <!-- PLAN -->
+    <div id="viewPlan" style="display:none">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div style="flex:1">
+          <label for="startAddressInput" class="small">כתובת מוצא (אופציונלי. אם ריק, נשתמש במיקום נוכחי):</label>
+          <input type="text" id="startAddressInput" placeholder="הזן כתובת התחלה...">
+        </div>
+        <button id="btnCompute" class="button-with-spinner">
+          <span id="computeText">חשב מסלול (Nearest-Neighbor)</span>
+          <span id="computeSpinner" class="loading-spinner"></span>
+        </button>
+        <button id="btnRecompute" class="secondary">חשב מחדש</button>
+        <button id="btnOpenGoogle" class="secondary">פתח ב-Google Maps</button>
+        <button id="btnOpenApple" class="secondary">פתח ב-Apple Maps</button>
+      </div>
+      <div class="small">התחלה = הכתובת שהוזנה / מיקום נוכחי.</div>
+      <!-- small preview map -->
+      <div id="mapSmall"></div>
+      <!-- full map (shown after compute) -->
+      <div id="mapFull"></div>
+      <div class="table-container">
+        <table id="profilesTable" aria-live="polite">
+          <thead><tr><th>#</th><th>שם</th><th>טלפון</th><th>כתובת</th><th>ETA</th><th>סטטוס</th><th>אפשרויות</th></tr></thead>
+          <tbody id="profilesBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <button id="toggleViewBtn" style="display:none;">
+      מעבר למפה &amp; תכנון
+    </button>
+  </div>
+</div>
+<div id="banner" class="banner"><div id="btxt"></div><div><a id="bcall" href="#">התקשר</a><button id="bclose" style="margin-left:8px;padding:8px;border-radius:8px">סגור</button></div></div>
+<!-- Custom Modal for Alerts and Confirms -->
+<div id="alertModal" class="modal">
+  <div class="modal-content">
+    <span class="close-button">&times;</span>
+    <p id="alertMessage"></p>
+    <div id="alertButtons" class="alert-buttons"></div>
+  </div>
+</div>
+<script>
+/* --------------------- Configuration & state --------------------- */
+const GOOGLE_MAPS_API_KEY = "AIzaSyDBR5nU2qACdPVqu6aLK0n6Bb1VCnix4eA";
+const STORAGE_KEY = 'road_planner_profiles_v14';
+let profiles = []; // {id,name,phone,address,raw,status,eta}
+let mapsLoaded = false;
+let mapSmall = null, mapFull = null, directionsService = null, directionsRenderer = null, markers = [];
+let distanceMatrixService = null;
+let notifTimers = {}, computeThrottle=0;
+let lastOrderedForOpen = null;
+let currentModalResolve = null;
+let currentView = 'input';
+
+/* --------------------- UI refs --------------------- */
+const viewInput = document.getElementById('viewInput'), viewPlan = document.getElementById('viewPlan');
+const smsInput = document.getElementById('smsInput'), startAddressInput = document.getElementById('startAddressInput');
+const btnParseAndSwitch = document.getElementById('btnParseAndSwitch'), btnClear = document.getElementById('btnClear');
+const btnCompute = document.getElementById('btnCompute'), btnRecompute = document.getElementById('btnRecompute'), btnOpenGoogle = document.getElementById('btnOpenGoogle'), btnOpenApple = document.getElementById('btnOpenApple');
+const profilesBody = document.getElementById('profilesBody');
+const mapSmallEl = document.getElementById('mapSmall'), mapFullEl = document.getElementById('mapFull');
+const banner = document.getElementById('banner'), btxt = document.getElementById('btxt'), bcall = document.getElementById('bcall'), bclose = document.getElementById('bclose');
+const alertModal = document.getElementById('alertModal'), alertMessage = document.getElementById('alertMessage'), alertButtons = document.getElementById('alertButtons');
+const computeText = document.getElementById('computeText'), computeSpinner = document.getElementById('computeSpinner');
+const toggleViewBtn = document.getElementById('toggleViewBtn');
+
+/* --------------------- Modal (Replaces alert & confirm) --------------------- */
+function showModal(message, isConfirm = false) {
+  return new Promise(resolve => {
+    alertMessage.textContent = message;
+    alertButtons.innerHTML = '';
+    
+    currentModalResolve = resolve;
+
+    if (isConfirm) {
+      const yesBtn = document.createElement('button');
+      yesBtn.textContent = 'כן';
+      yesBtn.onclick = () => { alertModal.style.display = 'none'; resolve(true); };
+      alertButtons.appendChild(yesBtn);
+
+      const noBtn = document.createElement('button');
+      noBtn.textContent = 'לא';
+      noBtn.onclick = () => { alertModal.style.display = 'none'; resolve(false); };
+      alertButtons.appendChild(noBtn);
+    } else {
+      const okBtn = document.createElement('button');
+      okBtn.textContent = 'אישור';
+      okBtn.onclick = () => { alertModal.style.display = 'none'; resolve(true); };
+      alertButtons.appendChild(okBtn);
+    }
+
+    alertModal.style.display = 'block';
+  });
+}
+document.querySelector('#alertModal .close-button').onclick = () => {
+  alertModal.style.display = 'none';
+  if (currentModalResolve) {
+    currentModalResolve(false);
+  }
+};
+window.onclick = (event) => {
+  if (event.target == alertModal) {
+    alertModal.style.display = 'none';
+    if (currentModalResolve) {
+      currentModalResolve(false);
+    }
+  }
+};
+
+btnParseAndSwitch.onclick = () => {
+    const txt = smsInput.value;
+    const result = parseBatch(txt);
+    const parsed = result.parsed;
+    const remainingText = result.remaining;
+
+    if (parsed.length === 0) {
+      showModal('לא נמצאו פרופילים חוקיים לניתוח. אנא ודא שהקלט מכיל שם, כתובת ומספר טלפון.');
+      return;
+    }
+    
+    loadProfiles();
+    let added = 0;
+    parsed.forEach(p => {
+      if (!profiles.some(x => x.raw === p.raw)) {
+        profiles.push(p); added++;
+      }
+    });
+    saveProfiles();
+    
+    showModal('נוספו פרופילים: ' + added);
+    smsInput.value = remainingText;
+    switchTo('plan');
+};
+
+function switchTo(v) {
+  currentView = v;
+  if (v === 'input') {
+    viewInput.style.display = 'block';
+    viewPlan.style.display = 'none';
+  } else {
+    viewInput.style.display = 'none';
+    viewPlan.style.display = 'block';
+    ensureMapsLoaded().then(() => {
+      startAuto();
+      renderTable();
+    }).catch(err => {
+      showModal('לא ניתן לטעון מפות: ' + err.message);
+    });
+  }
+}
+
+/* --------------------- Storage --------------------- */
+function loadProfiles() { profiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+function saveProfiles() { localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles)); }
+
+/* --------------------- Parsing --------------------- */
+function looksLikeJSON(s) { if (!s) return false; const t = s.trim(); return t.startsWith('{') || t.startsWith('[') || t.includes('localStorage.setItem') || /\b"id"\s*:\s*/.test(t); }
+
+function parseBatch(text) {
+  if (!text || !text.trim()) return { parsed: [], remaining: text };
+  if (looksLikeJSON(text)) { showModal('נראה שהדבקת JSON/קוד במקום הודעות SMS. השתמש ב־Load Examples אם רצית להכניס דוגמאות בדיקה.'); return { parsed: [], remaining: text }; }
+  // split by double-newline OR by "New job" marker
+  const parts = text.split(/(?=New job #\d+)/).map(p => p.trim()).filter(Boolean);
+  const out = [];
+  const successfulRaw = new Set();
+  
+  parts.forEach(p => {
+    const lines = p.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length < 2) return;
+    // find phone
+    const phoneLine = lines.find(l => /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/.test(l)) || '';
+    const phone = phoneLine ? phoneLine.replace(/[^\d]/g, '') : '';
+    // find addr: line with number and street-like word
+    const addr = lines.find(l => /\d+/.test(l) && /\b(St|Dr|Rd|Ave|Blvd|Ln|Cir|Way|Court|Place|Lane|Drive|Road|Terrace|Circle)\b/i.test(l))
+      || lines[2] || '';
+    // name: first line likely alpha-only
+    let name = lines.find(l => !/\d/.test(l) && /^[\p{L}\.\-'\s]+$/u.test(l)) || lines[1] || lines[0];
+    
+    // Check if both name and address were found to consider it a success
+    if (name && addr) {
+        out.push({ id: 'p_' + Math.random().toString(36).slice(2, 9), name: (name || '').trim(), phone, address: addr, raw: p, status: 'pending', eta: null });
+        successfulRaw.add(p);
+    }
+  });
+
+  // Re-build the remaining text by filtering out successful parses
+  const remainingText = parts.filter(p => !successfulRaw.has(p)).join('\n\n');
+  
+  return { parsed: out, remaining: remainingText };
+}
+
+
+/* --------------------- UI actions --------------------- */
+btnClear.onclick = async () => {
+  const result = await showModal('מחק את כל הפרופילים מהדפדפן?', true);
+  if (result) {
+    profiles = []; saveProfiles(); renderTable();
+  }
+};
+btnCompute.onclick = () => computeRouteFromManualOrCurrentLocation();
+btnRecompute.onclick = () => {
+    // Recompute from the first customer in the current ordered list
+    if (profiles.length > 1) {
+        const firstCustomer = profiles[0].address;
+        const restOfCustomers = profiles.slice(1).map(p => p.address);
+        computeRoute(firstCustomer, profiles.slice(1));
+    } else {
+        showModal('אין מספיק לקוחות לתכנון מסלול מחדש.');
+    }
+};
+btnOpenGoogle.onclick = () => openMaps('google');
+btnOpenApple.onclick = () => openMaps('apple');
+
+/* --------------------- Route planning --------------------- */
+async function computeRouteFromManualOrCurrentLocation() {
+    startSpinner();
+    btnCompute.disabled = true;
+
+    const startAddress = startAddressInput.value.trim();
+    let startPoint;
+
+    if (startAddress) {
+        startPoint = startAddress;
+        await startRoutePlanning(startPoint);
+    } else {
+        try {
+            const pos = await new Promise((resolve, reject) => {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 5000 });
+                } else {
+                    reject(new Error("Geolocation not supported by this browser."));
+                }
+            });
+            startPoint = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            await startRoutePlanning(startPoint);
+        } catch (error) {
+            stopSpinner();
+            btnCompute.disabled = false;
+            // Check for specific error to provide better feedback
+            if (error.code === error.PERMISSION_DENIED) {
+              showModal('איתור המיקום נכשל כי לא ניתנה הרשאה. אנא בדוק את הגדרות המיקום של הדפדפן שלך.');
+            } else {
+              showModal('לא הצלחתי לקבל את המיקום הנוכחי שלך. אנא הזן כתובת התחלה ידנית.');
+            }
+        }
+    }
+}
+
+async function startRoutePlanning(startPoint, excludeId = null) {
+    if (profiles.length === 0) {
+      showModal('אין פרופילים לתכנון מסלול. אנא הוסף פרופילים.');
+      stopSpinner();
+      btnCompute.disabled = false;
+      return;
+    }
+    
+    // Filter out the starting point if it's a customer
+    const destinations = profiles.filter(p => p.id !== excludeId);
+    
+    try {
+        const ordered = await findShortestRoute(startPoint, destinations);
+        profiles = (excludeId ? [profiles.find(p => p.id === excludeId)] : []).concat(ordered);
+        saveProfiles();
+        renderMap(profiles.map(p => p.address));
+        renderTable();
+    } catch (error) {
+        showModal('שגיאה בחישוב המסלול: ' + error.message);
+    } finally {
+        stopSpinner();
+        btnCompute.disabled = false;
+    }
+}
+
+async function findShortestRoute(origin, destinations) {
+    if (!distanceMatrixService) throw new Error("Distance Matrix Service not available.");
+    
+    const waypoints = destinations.map(d => ({ location: d.address }));
+    const results = await new Promise((resolve, reject) => {
+        distanceMatrixService.getDistanceMatrix({
+            origins: [origin],
+            destinations: waypoints.map(w => w.location),
+            travelMode: 'DRIVING'
+        }, (response, status) => {
+            if (status === 'OK') {
+                resolve(response);
+            } else {
+                reject(new Error('Distance Matrix Service failed due to: ' + status));
+            }
+        });
+    });
+
+    const matrix = results.rows[0].elements;
+    let shortestPath = [];
+    let unvisited = [...destinations];
+    let currentOrigin = origin;
+    let totalDuration = 0;
+
+    // Nearest Neighbor algorithm
+    while (unvisited.length > 0) {
+        let nearestIdx = -1;
+        let minDuration = Infinity;
+
+        // Find the nearest unvisited destination
+        const currentMatrix = (currentOrigin === origin) ? matrix : await getSingleOriginDistanceMatrix(currentOrigin, unvisited);
+        
+        currentMatrix.forEach((el, i) => {
+            if (el.status === 'OK' && el.duration.value < minDuration) {
+                minDuration = el.duration.value;
+                nearestIdx = i;
+            }
+        });
+
+        if (nearestIdx === -1) {
+            throw new Error("Could not find a valid route to all destinations.");
+        }
+
+        const nextStop = unvisited.splice(nearestIdx, 1)[0];
+        shortestPath.push(nextStop);
+        totalDuration += minDuration;
+        nextStop.eta = formatDuration(totalDuration);
+        currentOrigin = nextStop.address;
+    }
+
+    return shortestPath;
+}
+
+// Helper to get distance matrix from a single origin to multiple destinations
+async function getSingleOriginDistanceMatrix(origin, destinations) {
+    if (!distanceMatrixService) throw new Error("Distance Matrix Service not available.");
+    return new Promise((resolve, reject) => {
+        distanceMatrixService.getDistanceMatrix({
+            origins: [origin],
+            destinations: destinations.map(d => d.address),
+            travelMode: 'DRIVING'
+        }, (response, status) => {
+            if (status === 'OK') {
+                resolve(response.rows[0].elements);
+            } else {
+                reject(new Error('Distance Matrix Service failed for sub-route: ' + status));
+            }
+        });
+    });
+}
+
+function formatDuration(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    
+    let parts = [];
+    if (hours > 0) parts.push(hours + ' שעות');
+    if (remainingMinutes > 0) parts.push(remainingMinutes + ' דקות');
+    if (parts.length === 0) return '< 1 דקה';
+    return parts.join(' ו-');
+}
+
+/* --------------------- Maps & rendering --------------------- */
+function ensureMapsLoaded() {
+  return new Promise((resolve, reject) => {
+    if (mapsLoaded) { resolve(); return; }
+    
+    let checkInterval = setInterval(() => {
+      if (mapsLoaded) {
+        clearInterval(checkInterval);
+        resolve();
+      }
+    }, 100);
+  });
+}
+
+function renderMap(addresses) {
+  if (!mapsLoaded || addresses.length === 0) return;
+  
+  const origin = addresses[0];
+  const destination = addresses[addresses.length - 1];
+  const waypoints = addresses.slice(1, -1).map(address => ({ location: address, stopover: true }));
+
+  directionsService.route({
+    origin,
+    destination,
+    waypoints,
+    travelMode: 'DRIVING',
+  }, (response, status) => {
+    if (status === 'OK') {
+      mapFullEl.style.display = 'block';
+      directionsRenderer.setDirections(response);
+      lastOrderedForOpen = addresses;
+    } else {
+      showModal('Directions request failed due to ' + status);
+    }
+  });
+}
+
+function renderTable() {
+  profilesBody.innerHTML = '';
+  if (profiles.length === 0) {
+    profilesBody.innerHTML = '<tr><td colspan="7">אין פרופילים, אנא הוסף אחד.</td></tr>';
+    return;
+  }
+  profiles.forEach((p, idx) => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${idx + 1}</td>
+      <td>${p.name}</td>
+      <td><a href="tel:${p.phone}">${p.phone}</a></td>
+      <td>${p.address}</td>
+      <td>${p.eta ? p.eta : '---'}</td>
+      <td>
+        <select class="status-select" data-id="${p.id}">
+          <option value="pending" ${p.status === 'pending' ? 'selected' : ''}>ממתין</option>
+          <option value="enroute" ${p.status === 'enroute' ? 'selected' : ''}>בדרך</option>
+          <option value="done" ${p.status === 'done' ? 'selected' : ''}>הושלם</option>
+          <option value="canceled" ${p.status === 'canceled' ? 'selected' : ''}>בוטל</option>
+        </select>
+      </td>
+      <td class="row-actions">
+        <button class="start-button" data-id="${p.id}">התחל כאן</button>
+      </td>
+    `;
+    profilesBody.appendChild(row);
+  });
+  
+  // Attach event listeners for the new "Start here" buttons
+  document.querySelectorAll('.start-button').forEach(btn => {
+    btn.onclick = (e) => {
+      const id = e.target.dataset.id;
+      const selectedProfile = profiles.find(p => p.id === id);
+      if (selectedProfile) {
+        startRoutePlanning(selectedProfile.address, id);
+      }
+    };
+  });
+}
+async function openMaps(app) {
+    if (profiles.length === 0) {
+        showModal('אנא הוסף לפחות פרופיל אחד.');
+        return;
+    }
+
+    const startAddress = startAddressInput.value.trim();
+    let origin = startAddress;
+    let waypoints;
+
+    if (startAddress) {
+        waypoints = profiles.map(p => p.address);
+    } else {
+        const firstCustomer = profiles[0].address;
+        origin = await new Promise((resolve, reject) => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    resolve(`${pos.coords.latitude},${pos.coords.longitude}`);
+                }, () => {
+                    resolve(firstCustomer); // Use first customer as origin on geo-failure
+                });
+            } else {
+                resolve(firstCustomer); // Use first customer if geolocation not supported
+            }
+        });
+        waypoints = profiles.map(p => p.address);
+    }
+
+    const confirmResult = await showModal('שימו לב: פתיחה במפות תציג את כל היעדים אך לא תחשב מסלול אופטימלי באופן אוטומטי. עליך לבצע ניווט ידני בין היעדים.', true);
+    if (!confirmResult) return;
+
+    if (app === 'google') {
+      const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(waypoints[waypoints.length-1])}&waypoints=${waypoints.slice(0, -1).map(encodeURIComponent).join('|')}`;
+      window.open(url, '_blank');
+    } else if (app === 'apple') {
+      const url = `http://maps.apple.com/?daddr=${encodeURIComponent(waypoints.join(','))}`;
+      window.open(url, '_blank');
+    }
+}
+
+
+function startSpinner() {
+  computeText.style.display = 'none';
+  computeSpinner.style.display = 'inline-block';
+}
+
+function stopSpinner() {
+  computeText.style.display = 'inline';
+  computeSpinner.style.display = 'none';
+}
+
+/* --------------------- Status & notification --------------------- */
+function startAuto() {
+  stopAuto();
+  document.querySelectorAll('.status-select').forEach(select => {
+    select.onchange = (e) => handleStatusChange(e.target.dataset.id, e.target.value);
+  });
+}
+function stopAuto() {
+  document.querySelectorAll('.status-select').forEach(select => select.onchange = null);
+}
+function handleStatusChange(id, status) {
+  const profile = profiles.find(p => p.id === id);
+  if (!profile) return;
+  profile.status = status;
+  saveProfiles();
+  if (status === 'enroute') {
+    showBanner(profile);
+  } else {
+    hideBanner(id);
+  }
+  if (status === 'done' || status === 'canceled') {
+    clearTimeout(notifTimers[id]);
+  }
+}
+function showBanner(profile) {
+  clearTimeout(notifTimers[profile.id]);
+  btxt.textContent = `בדרך ל${profile.name} בכתובת ${profile.address}`;
+  bcall.href = `tel:${profile.phone}`;
+  banner.style.display = 'flex';
+  notifTimers[profile.id] = setTimeout(() => hideBanner(profile.id), 120000);
+}
+function hideBanner(id) {
+  if (notifTimers[id]) {
+    clearTimeout(notifTimers[id]);
+    delete notifTimers[id];
+  }
+  banner.style.display = 'none';
+}
+bclose.onclick = () => hideBanner(null);
+
+/* --------------------- Init --------------------- */
+window.onload = () => {
+  loadProfiles();
+  switchTo('input');
+};
+</script>
+</body>
+</html>
