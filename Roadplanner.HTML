@@ -1,0 +1,1828 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+    <title>Road Planner - V25 Stability Fixes</title>
+    <link rel="icon" href="https://storage.googleapis.com/gweb-uniblog-publish-prod/images/Gemini_Generated_Image_6wgyvo6wgyvo6wgy.width-1000.png" sizes="32x32" type="image/png">
+    <link rel="icon" href="https://storage.googleapis.com/gweb-uniblog-publish-prod/images/Gemini_Generated_Image_6wgyvo6wgyvo6wgy.width-1000.png" sizes="16x16" type="icon/png">
+    <link rel="apple-touch-icon" href="https://storage.googleapis.com/gweb-uniblog-publish-prod/images/Gemini_Generated_Image_6wgyvo6wgyvo6wgy.width-1000.png" sizes="180x180">
+    <meta name="theme-color" content="#0A1F44">
+    <style>
+        /* --------------------- Core Variables & Setup --------------------- */
+        :root {
+            --dark-blue: #0A1F44;
+            --mid-blue: #142A5C;
+            --white: #FFFFFF;
+            --black: #000000;
+            --red: #dc3545; /* Canceled */
+            --green: #28a745; /* Done */
+            --blue: #007bff; /* Enroute */
+            --yellow: #ffc107; /* Missing/Warning */
+            --gray: #6c757d; /* Missing/Default Color */
+            --light-gray: #f8f8f8;
+            --text-color: #333;
+            --border-color: #ddd;
+            --font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+        }
+
+        * { box-sizing: border-box }
+
+        body {
+            margin: 0;
+            font-family: var(--font-family);
+            background: var(--dark-blue);
+            color: var(--white);
+            -webkit-font-smoothing: antialiased;
+            direction: rtl;
+            overflow-x: hidden;
+        }
+
+        header {
+            background: var(--black);
+            padding: 12px 14px;
+            text-align: center;
+            font-weight: 700;
+            margin-bottom: 14px;
+        }
+
+        .container {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 0;
+            width: 94%;
+        }
+
+        .card {
+            background: var(--white);
+            color: var(--text-color);
+            border-radius: 10px;
+            padding: 14px;
+            box-shadow: 0 6px 22px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        textarea, input[type="text"], input[type="tel"] {
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            font-size: 0.95rem;
+            resize: vertical;
+            background: #fff;
+            color: #000;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        #startAddressInput {
+            padding: 12px 10px;
+            font-size: 1.1rem;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 8px;
+            align-items: stretch;
+            position: relative;
+        }
+
+        .input-group button#btnPaste {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            padding: 5px 8px;
+            min-width: 80px;
+            height: 34px;
+            align-self: flex-start;
+            font-size: 0.85rem;
+            z-index: 10;
+        }
+
+        #smsInput {
+            flex-grow: 1;
+            padding-left: 95px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            flex-wrap: wrap
+        }
+        
+        /* I/O Controls in the Input View */
+        .io-controls-input {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+            border-top: 1px dashed #ccc;
+            padding-top: 10px;
+            justify-content: flex-start; 
+        }
+        
+        /* I/O Controls in the Plan View */
+        .io-controls-plan {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+        }
+        
+        #viewPlan .layout-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #viewPlan .layout-group .main-control {
+             width: 100%;
+        }
+
+        #viewPlan .layout-group .other-controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+        }
+
+        button {
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: none;
+            background: var(--dark-blue);
+            color: var(--white);
+            font-weight: 700;
+            cursor: pointer;
+            transition: background-color 0.2s, box-shadow 0.2s;
+        }
+
+        button.secondary {
+            background: var(--light-gray);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+        
+        button.copy-button {
+             background: var(--green);
+             color: var(--white);
+        }
+
+        button.export-button {
+             background: var(--dark-blue); /* Export can be dark blue */
+             color: var(--white);
+        }
+
+        button:hover:not(:disabled) {
+            background: var(--mid-blue);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        button.secondary:hover:not(:disabled) {
+            background: #eee;
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .small {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        #mapFull {
+            width: 100%;
+            height: 420px;
+            border-radius: 10px;
+            margin-top: 12px;
+            border: 1px solid var(--border-color);
+            display: none;
+        }
+
+        /* --------------------- Table Styling --------------------- */
+        .profiles-table-container {
+            overflow-x: auto;
+            margin-top: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+        }
+
+        .profiles-table {
+            width: 100%;
+            border-collapse: collapse;
+            color: var(--text-color);
+            font-size: 0.95rem;
+        }
+
+        .profiles-table th {
+            background: var(--dark-blue);
+            color: var(--white);
+            padding: 10px 8px;
+            text-align: right;
+            font-weight: 700;
+        }
+
+        .profiles-table thead tr:first-child th:first-child { border-top-right-radius: 9px; }
+        .profiles-table thead tr:first-child th:last-child { border-top-left-radius: 9px; }
+
+        .profiles-table td {
+            background: var(--white);
+            padding: 8px;
+            border-bottom: 1px solid #f0f0f0;
+            text-align: right;
+        }
+
+        .profiles-table tr:last-child td { border-bottom: none; }
+
+        .profiles-table tr.profile-row {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        /* Drag and drop styles */
+        .profiles-table tr.draggable-row { cursor: grab; }
+        .profiles-table tr.dragging { opacity: 0.5; background-color: #f0f0f0; }
+        .profiles-table tr.drag-over td { border-bottom: 3px dashed var(--dark-blue); padding-bottom: 5px; }
+
+        .profiles-table tr.profile-row:hover {
+            background-color: #f5f5f5;
+        }
+
+        .profiles-table tr.profile-row.expanded {
+            background-color: #f0f0f0;
+        }
+
+        .profiles-table td:first-child { font-weight: bold; width: 40px; text-align: center; }
+
+        /* Time Window Highlighting */
+        .time-window-missing { color: var(--yellow); font-weight: 700; }
+        .time-window-valid { color: var(--text-color); font-weight: 500; } 
+        
+        /* ETA Highlighting */
+        .eta-late { color: var(--red); font-weight: 700; } 
+        .eta-early { color: var(--blue); font-weight: 700; } 
+
+
+        .start-point-name { color: var(--dark-blue); font-weight: 700; }
+
+        /* Status Name Styling (New Logic) */
+        .status-name-pending { color: var(--text-color); } /* Default color (no color) */
+        .status-name-missing { color: var(--gray); font-weight: 700; }
+        .status-name-enroute { color: var(--blue); font-weight: 700; } 
+        .status-name-done { color: var(--green); font-weight: 700; } 
+        .status-name-canceled { color: var(--red); font-weight: 700; } 
+
+        /* Expanded Detail Row */
+        .detail-row td {
+            padding: 0;
+            background: #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .detail-content {
+            padding: 15px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            background: #f0f0f0;
+            align-items: end;
+        }
+
+        .detail-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .detail-field label {
+            font-size: 0.8rem;
+            color: #555;
+            display: block;
+        }
+
+        .detail-content .controls {
+            grid-column: 1 / -1;
+            margin-top: 5px;
+            justify-content: space-between;
+            border-top: 1px dashed #ccc;
+            padding-top: 10px;
+        }
+
+        /* Status Select Styling */
+        .status-select {
+            padding: 6px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            color: var(--text-color);
+        }
+        .status-pending { background-color: var(--light-gray); }
+        .status-missing { background-color: var(--gray); color: white; border: none; }
+        .status-enroute { background-color: var(--blue); color: white; border: none; }
+        .status-done { background-color: var(--green); color: white; border: none; }
+        .status-canceled { background-color: var(--red); color: white; border: none; }
+
+        .start-button { background: var(--dark-blue); color: var(--white); font-weight: 600; padding: 6px; }
+
+        /* Banner & Modal Styles */
+        .banner {
+            position: fixed;
+            left: 12px;
+            right: 12px;
+            bottom: 16px;
+            z-index: 9999;
+            display: none;
+            padding: 12px;
+            border-radius: 10px;
+            background: var(--black);
+            color: #fff;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            align-items: center;
+            justify-content: space-between
+        }
+
+        .banner a {
+            background: #fff;
+            color: #0A1F44;
+            padding: 8px 10px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 700
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+            padding-top: 60px
+        }
+
+        .modal-content {
+            background-color: var(--white);
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            color: var(--black);
+            position: relative
+        }
+
+        .modal-content p { margin: 0 0 15px }
+
+        .modal-content .close-button {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            position: absolute;
+            top: 10px;
+            left: 15px;
+            cursor: pointer
+        }
+
+        .modal-content .close-button:hover, .modal-content .close-button:focus {
+            color: #000;
+            text-decoration: none;
+            cursor: pointer
+        }
+
+        .alert-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px
+        }
+
+        .loading-spinner {
+            border: 2px solid #fff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            display: none;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg) }
+            100% { transform: rotate(360deg) }
+        }
+
+        .button-with-spinner {
+            display: flex;
+            align-items: center;
+            justify-content: center
+        }
+
+        #btnSwitchToInput {
+            margin-top: 10px;
+            margin-bottom: 10px;
+            display: block;
+            width: 100%;
+        }
+        
+        .alert-warning {
+             padding: 10px;
+             background: #fff3cd;
+             border: 1px solid #ffeeba;
+             color: #856404;
+             border-radius: 5px;
+             margin-bottom: 10px;
+             font-weight: 700;
+             text-align: right;
+        }
+
+        @media (max-width: 720px) {
+            #mapFull { height: 260px }
+            textarea { height: 110px }
+
+            .controls { flex-direction: column; align-items: stretch }
+            .controls button.secondary { margin-top: 4px }
+            #viewPlan .small { margin-top: 4px }
+            .modal-content { width: 95% }
+
+            /* Hide Address column on small screens */
+            .profiles-table th:nth-child(3), .profiles-table td:nth-child(3) { display: none; }
+            .detail-content { grid-template-columns: 1fr; }
+            .detail-content .controls { flex-direction: column; gap: 5px; }
+
+            .input-group { flex-direction: row; }
+            .input-group button#btnPaste {
+                top: 5px;
+                left: 5px;
+                position: absolute;
+                width: auto;
+                max-width: none;
+            }
+            #smsInput { padding-left: 95px; }
+            
+            /* Adjustments for new columns on small screens */
+            .profiles-table th:nth-child(4), .profiles-table td:nth-child(4) { width: 40%; }
+        }
+    </style>
+    <script>
+        window.initMaps = function () {
+            mapsLoaded = true;
+            // Check if Google Maps objects exist
+            if (typeof google === 'undefined' || !google.maps || !google.maps.DirectionsService) {
+                console.error("Google Maps API loaded but core services are missing.");
+                // Fallback or warning if services fail to initialize
+                // We'll proceed without maps for now, relying on basic functionality.
+                return;
+            }
+            directionsService = new google.maps.DirectionsService();
+            directionsRenderer = new google.maps.DirectionsRenderer();
+            distanceMatrixService = new google.maps.DistanceMatrixService();
+
+            mapFull = new google.maps.Map(document.getElementById('mapFull'), {
+                zoom: 12,
+                center: {lat: 31.0461, lng: 34.8516}
+            });
+            directionsRenderer.setMap(mapFull);
+
+            const startAddressInput = document.getElementById('startAddressInput');
+            if (startAddressInput && google.maps.places) {
+                new google.maps.places.Autocomplete(startAddressInput);
+            }
+        };
+    </script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDBR5nU2qACdPVqu6aLK0n6Bb1VCnix4eA&callback=initMaps&loading=async&libraries=places"></script>
+</head>
+<body>
+<header>Road Planner</header>
+<div class="container">
+    <div class="card">
+        <div id="viewInput">
+            <div class="small">הדבק כאן הודעות SMS — שורה ריקה בין הודעות.</div>
+            <div class="input-group">
+                <textarea id="smsInput" placeholder="הדבק SMS כאן..."></textarea>
+                <button id="btnPaste" class="secondary">הדבק</button>
+            </div>
+            <div class="controls">
+                <button id="btnParseAndSwitch">טעינת מידע ומעבר לתכנון</button>
+                <button id="btnClear" class="secondary">נקה פרופילים</button>
+                <button id="btnLoadExample" class="secondary">טען דוגמאות</button>
+            </div>
+            <div class="io-controls-input">
+                <input type="file" id="btnImport" accept="application/json" style="display:none;">
+                <button onclick="document.getElementById('btnImport').click()" class="secondary">טען קובץ פרופילים (JSON)</button>
+            </div>
+        </div>
+        <div id="viewPlan" style="display:none">
+            <button id="btnSwitchToInput">מעבר להזנת SMS</button>
+            
+            <div id="missingDataWarning" class="alert-warning" style="display:none;">
+                 ⚠️ אזהרה: ישנם פרופילים בסטטוס **"חסר"** (כתובת או שם). הם לא יכללו בחישוב המסלול. 
+                 יש לשמור את הפרופילים בעריכה פרטנית ולחשב מחדש.
+            </div>
+
+            <div class="layout-group">
+                <div class="main-control">
+                    <label for="startAddressInput" class="small">כתובת מוצא (אופציונלי. אם ריק, נשתמש במיקום נוכחי):</label>
+                    <input type="text" id="startAddressInput" placeholder="הזן כתובת התחלה..." autocomplete="off">
+                </div>
+
+                <button id="btnCompute" class="button-with-spinner main-control">
+                    <span id="computeText">חשב מסלול (Time-Aware)</span>
+                    <span id="computeSpinner" class="loading-spinner"></span>
+                </button>
+                
+                <div class="io-controls-plan">
+                    <button id="btnCopyToClipboard" class="copy-button" disabled>העתק מסלול וזמני הגעה</button>
+                    <button id="btnExport" class="export-button" disabled>הורדת קובץ פרופילים (JSON)</button>
+                </div>
+
+
+                <div class="other-controls">
+                    <button id="btnRecompute" class="secondary" style="display:none;">חשב מחדש</button>
+                    <button id="btnOpenGoogle" class="secondary" disabled>פתח ב-Google Maps</button>
+                    <button id="btnOpenApple" class="secondary" disabled>פתח ב-Apple Maps</button>
+                </div>
+            </div>
+
+            <div class="small">התחלה = הכתובת שהוזנה / מיקום נוכחי. **ניתן לגרור ולשחרר את השורות** בטבלה למטה כדי לשנות את הסדר ידנית.</div>
+            <div id="mapFull"></div>
+            <div id="profilesList" class="profiles-table-container">
+                <table class="profiles-table">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>שם (סטטוס)</th>
+                        <th>כתובת</th>
+                        <th>חלון זמנים</th>
+                        <th>זמן הגעה משוער (ETA)</th>
+                    </tr>
+                    </thead>
+                    <tbody id="profilesBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="banner" class="banner">
+    <div id="btxt"></div>
+    <div>
+        <a id="bcall" href="#">התקשר</a>
+        <button id="bclose" style="margin-left:8px;padding:8px;border-radius:8px; background: none; border: 1px solid #fff;">סגור</button>
+    </div>
+</div>
+<div id="alertModal" class="modal">
+    <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <p id="alertMessage"></p>
+        <div id="alertButtons" class="alert-buttons"></div>
+    </div>
+</div>
+
+<script>
+    /* --------------------- Configuration & state --------------------- */
+    const GOOGLE_MAPS_API_KEY = "AIzaSyDBR5nU2qACdPVqu6aLK0n6Bb1VCnix4eA";
+    const STORAGE_KEY = 'road_planner_profiles_v25_stable';
+    const SERVICE_TIME_SECONDS = 10 * 60; // 10 minutes service time at each stop
+    const LATE_PENALTY_MULTIPLIER = 1000000; // HUGE penalty for each minute late (in minutes)
+
+    let profiles = [];
+    let mapsLoaded = false;
+    let mapFull = null, directionsService = null, directionsRenderer = null, markers = [];
+    let distanceMatrixService = null;
+    let distanceMatrix = {}; // Cache for distances/durations: { 'addrA|addrB': { duration: seconds, distance: meters } }
+    let currentModalResolve = null;
+    let currentView = 'input';
+    let isRouteCalculated = false;
+    let draggedProfile = null;
+    let expandedRowId = null;
+
+
+    /* --------------------- UI refs --------------------- */
+    const viewInput = document.getElementById('viewInput'), viewPlan = document.getElementById('viewPlan');
+    const smsInput = document.getElementById('smsInput'), startAddressInput = document.getElementById('startAddressInput');
+    const btnParseAndSwitch = document.getElementById('btnParseAndSwitch'), btnClear = document.getElementById('btnClear');
+    const btnCompute = document.getElementById('btnCompute'), btnRecompute = document.getElementById('btnRecompute');
+    const profilesBody = document.getElementById('profilesBody');
+    const mapFullEl = document.getElementById('mapFull');
+    const computeText = document.getElementById('computeText'), computeSpinner = document.getElementById('computeSpinner');
+    const btnPaste = document.getElementById('btnPaste');
+    const btnExport = document.getElementById('btnExport');
+    const btnImport = document.getElementById('btnImport');
+    const btnCopyToClipboard = document.getElementById('btnCopyToClipboard');
+    const missingDataWarning = document.getElementById('missingDataWarning');
+
+
+    /* --------------------- Profile Status Logic --------------------- */
+
+    /** Determines the initial status of a newly parsed/updated profile */
+    function determineProfileStatus(profile) {
+        if (profile.status === 'canceled') return 'canceled';
+        if (profile.status === 'done') return 'done';
+        if (profile.status === 'enroute') return 'enroute';
+        
+        // Validation for 'missing' vs 'pending'
+        const hasAddress = profile.address && profile.address.trim().length > 5;
+        const hasName = profile.name && profile.name.trim().length > 1;
+        
+        if (!hasAddress || !hasName) {
+            return 'missing';
+        }
+        return 'pending';
+    }
+
+
+    /* --------------------- Time/Date Utilities --------------------- */
+    function timeToMinutes(timeStr) {
+        if (!timeStr) return null;
+        
+        // Ensure string is cleaned for parsing
+        const cleanedStr = timeStr.replace(/[^a-zA-Z0-9:]/g, ' ').trim(); 
+
+        const parts = cleanedStr.match(/(\d{1,2})(?::(\d{2}))?\s*(?:(a\.?m\.?|p\.?m\.?)|(am|pm))?/i);
+        if (!parts) return null;
+
+        let h = parseInt(parts[1]);
+        const m = parseInt(parts[2] || '0');
+        const ampm = (parts[3] || parts[4] || '').toLowerCase().replace(/\./g, '');
+
+        if (!ampm) {
+             // Heuristic for 24-hour clock conversion (e.g., 8 means 8am, 15 means 3pm)
+             if (h < 8 && h > 0 && h !== 12) { 
+                 h += 12; // Assume 1-7 means PM if no AM/PM is specified (e.g., 2 is 2PM)
+             }
+        } else {
+             if (ampm === 'pm' && h < 12) h += 12;
+             if (ampm === 'am' && h === 12) h = 0; // 12am is 00:00
+        }
+
+        if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+            return h * 60 + m;
+        }
+        return null;
+    }
+
+    /** Extracts time window from a raw string. */
+    function parseTimeWindow(raw) {
+        if (!raw) return null;
+
+        // Regex for ranges (12 to 2, 8-11am)
+        const rangeRegex = /(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)\s*(?:to|עד|\s*-\s*)\s*(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)/i;
+        let match = raw.match(rangeRegex);
+
+        if (match) {
+            const time1Str = match[1].trim();
+            const time2Str = match[2].trim();
+            const time1Min = timeToMinutes(time1Str);
+            const time2Min = timeToMinutes(time2Str);
+
+            if (time1Min !== null && time2Min !== null) {
+                let startMin = time1Min;
+                let endMin = time2Min;
+
+                // Handle day roll-over (e.g., 10pm (1320) to 2am (1440+120=1560)
+                if (endMin < startMin) {
+                     endMin += 24 * 60; 
+                }
+
+                return {
+                    startMin: startMin,
+                    endMin: endMin,
+                    raw: match[0].trim()
+                };
+            }
+        }
+        
+        // Regex for single time (e.g., 12:00 pm, 8am, 08:00)
+        const singleTimeRegex = /(\d{1,2}:\d{2}|\d{1,2}\s*(?:a\.?m\.?|p\.?m\.?))\b/i; 
+        const timeOnlyMatch = raw.match(singleTimeRegex);
+
+        if (timeOnlyMatch) {
+            const timeStr = timeOnlyMatch[0].trim(); // Use [0] for the full match
+            const timeMin = timeToMinutes(timeStr);
+            if (timeMin !== null) {
+                // For a single time, assume a 3-hour window
+                return {
+                    startMin: timeMin,
+                    endMin: timeMin + (3 * 60), 
+                    raw: timeStr
+                };
+            }
+        }
+        
+        return null;
+    }
+
+    function minutesToTimeDisplay(minutes) {
+        if (minutes === null || minutes === undefined) return '';
+        const displayMinutes = minutes % (24 * 60); 
+        const date = new Date(0, 0, 0, 0, displayMinutes);
+        return date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    }
+
+
+    /* --------------------- Modal Functions --------------------- */
+    function showModal(message, isConfirm = false) {
+        return new Promise(resolve => {
+            document.getElementById('alertMessage').textContent = message;
+            document.getElementById('alertButtons').innerHTML = '';
+
+            currentModalResolve = resolve;
+
+            if (isConfirm) {
+                const yesBtn = document.createElement('button');
+                yesBtn.textContent = 'כן';
+                yesBtn.onclick = () => {
+                    document.getElementById('alertModal').style.display = 'none';
+                    resolve(true);
+                };
+                document.getElementById('alertButtons').appendChild(yesBtn);
+
+                const noBtn = document.createElement('button');
+                noBtn.textContent = 'לא';
+                noBtn.onclick = () => {
+                    document.getElementById('alertModal').style.display = 'none';
+                    resolve(false);
+                };
+                document.getElementById('alertButtons').appendChild(noBtn);
+            } else {
+                const okBtn = document.createElement('button');
+                okBtn.textContent = 'אישור';
+                okBtn.onclick = () => {
+                    document.getElementById('alertModal').style.display = 'none';
+                    resolve(true);
+                };
+                document.getElementById('alertButtons').appendChild(okBtn);
+            }
+
+            document.getElementById('alertModal').style.display = 'block';
+        });
+    }
+
+
+    /* --------------------- Parsing (FIXED) --------------------- */
+    
+    function looksLikeJSON(s) {
+        if (!s) return false;
+        const t = s.trim();
+        return t.startsWith('{') || t.startsWith('[');
+    }
+    
+    // Updated Regex for Address: Allows for more generic format but keeps the structure of a US address
+    // Matches: [Number] [Street] [City], [State] [Zip]
+    // Using \p{L} for letters (supports Unicode, including Hebrew/Arabic if needed, though addresses are mostly English)
+    const addressRegex = /(\d+\s+[\p{L}\s\d.,#-]+,\s*[\p{L}\s]+,\s*([A-Z]{2}|(?:New\s+Jersey|Pennsylvania|Delaware|NJ|PA|DE))\s*\d{5})/iu;
+    const phoneRegex = /(?:(\(\d{3}\)\s*\d{3}[-.\s]?\d{4})|(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})|(\+\d{1,3}[-.\s]?\d{4,12}))/g;
+
+
+    function parseBatch(text) {
+        if (!text || !text.trim()) return {parsed: [], remaining: text};
+        if (looksLikeJSON(text)) {
+            showModal('נראה שהדבקת JSON/קוד במקום הודעות SMS. אנא הדבק טקסט חופשי.');
+            return {parsed: [], remaining: text};
+        }
+
+        // Split by known job delimiters or by multiple newlines (empty lines)
+        const parts = text.split(/(?:New\s+job\s*#\d+)/i)
+                            .map(p => p.trim())
+                            .filter(p => p)
+                            .flatMap(p => p.split(/\n{2,}/).map(s => s.trim())); // Split further by empty lines
+
+        const out = [];
+        const successfulRaw = new Set();
+        
+
+        parts.forEach(p => {
+            if (!p) return;
+            let phone = '';
+            let addr = '';
+            let name = '';
+            let timeWindowRaw = '';
+            let timeWindow = null;
+            
+            // 1. Extract Address (CRITICAL FILTER)
+            const addrMatch = p.match(addressRegex);
+            if (addrMatch) {
+                addr = addrMatch[1].trim(); 
+            } else {
+                 return; // Skip if no address is found
+            }
+
+            // 2. Extract Phone Number
+            const phoneMatch = p.match(phoneRegex);
+            if (phoneMatch && phoneMatch.length > 0) {
+                 // Use the first match, clean it up
+                 phone = phoneMatch[0].replace(/[^\d]/g, '');
+                 if (phone.length === 11 && phone.startsWith('1')) phone = phone.substring(1);
+            }
+
+            // 3. Extract Name (Heuristic)
+            const lines = p.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+            
+            // Look for the line that precedes the address or is the first line
+            let potentialNameLine = lines.find(line => !line.includes(addr) && !line.match(phoneRegex));
+            if (!potentialNameLine) potentialNameLine = lines[0]; // Fallback to first line
+            
+            if (potentialNameLine) {
+                 let potentialName = potentialNameLine;
+                 
+                 // Remove common titles/roles and phone numbers/job IDs from the name line
+                 potentialName = potentialName.replace(/\s*\(\s*(Owner|Realtor|Tenant|Customer|Client|Contact)\s*\)/i, '')
+                                               .replace(/#\d+/g, '') 
+                                               .replace(phoneRegex, '') 
+                                               .replace(/[.,;:]/g, '') // Remove punctuation
+                                               .trim();
+                 
+                 const nameParts = potentialName.split(/\s+/).filter(Boolean);
+                 if (nameParts.length > 0) {
+                      // Take up to 2-3 words for the name
+                      name = nameParts.slice(0, 3).join(' '); 
+                 }
+            }
+            if (!name) name = "Client";
+
+
+            // 4. Extract Time Window
+            timeWindow = parseTimeWindow(p);
+            if (timeWindow) {
+                timeWindowRaw = timeWindow.raw;
+            }
+            
+            const newProfile = {
+                id: 'p_' + Math.random().toString(36).slice(2, 9),
+                name: name,
+                phone: phone,
+                address: addr,
+                raw: p,
+                eta: null,
+                isLate: false,
+                timeWindow: timeWindow, 
+                timeWindowRaw: timeWindowRaw,
+                status: 'pending' // Initial status before final check
+            };
+
+            // Set final status based on validation
+            newProfile.status = determineProfileStatus(newProfile);
+            
+            if (newProfile.status !== 'missing' || (newProfile.status === 'missing' && newProfile.address)) {
+                out.push(newProfile);
+                successfulRaw.add(p);
+            }
+        });
+
+        const remainingText = parts.filter(p => !successfulRaw.has(p)).join('\n\n');
+
+        return {parsed: out, remaining: remainingText};
+    }
+
+
+    /* --------------------- Storage & Init --------------------- */
+    function switchTo(v) {
+        currentView = v;
+        if (v === 'input') {
+            viewInput.style.display = 'block';
+            viewPlan.style.display = 'none';
+            document.getElementById('btnSwitchToInput').style.display = 'none';
+        } else {
+            viewInput.style.display = 'none';
+            viewPlan.style.display = 'block';
+            document.getElementById('btnSwitchToInput').style.display = 'block';
+            ensureMapsLoaded().then(() => {
+                renderTable(); 
+                // Only show map if route was calculated AND there are non-canceled/non-missing profiles
+                const relevantProfiles = profiles.filter(p => p.status !== 'canceled' && p.status !== 'missing');
+                if (isRouteCalculated && relevantProfiles.length > 0) {
+                    mapFullEl.style.display = 'block';
+                } else {
+                    mapFullEl.style.display = 'none';
+                }
+            }).catch(err => {
+                console.error(err);
+            });
+        }
+        updateControlStates();
+    }
+
+    function loadProfiles() {
+        const storedData = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        
+        if (storedData && Array.isArray(storedData.profiles)) {
+             profiles = storedData.profiles;
+             isRouteCalculated = storedData.isRouteCalculated || false;
+             if (storedData.startAddress) startAddressInput.value = storedData.startAddress;
+        } else {
+             profiles = [];
+             isRouteCalculated = false;
+        }
+
+
+        profiles.forEach(p => {
+            // Ensure essential fields are present and typed correctly
+            if (!p.id) p.id = 'p_' + Math.random().toString(36).slice(2, 9);
+            p.status = determineProfileStatus(p); // Re-validate status on load
+            if (!p.timeWindowRaw) p.timeWindowRaw = '';
+            if (p.timeWindowRaw && !p.timeWindow) {
+                 p.timeWindow = parseTimeWindow(p.timeWindowRaw);
+            }
+            if (p.eta && typeof p.eta !== 'number') p.eta = parseInt(p.eta);
+            if (typeof p.isLate !== 'boolean') p.isLate = false;
+        });
+        
+        // Re-sort profiles to move CANCELED to the end on load
+        sortProfiles();
+        
+        if (currentView === 'plan') {
+            renderTable();
+        }
+        updateControlStates();
+    }
+
+    function saveProfiles() {
+        // Save the complete state 
+        const stateToSave = {
+             profiles: profiles,
+             isRouteCalculated: isRouteCalculated,
+             startAddress: startAddressInput.value.trim() 
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+        updateControlStates(); // Update UI controls
+    }
+    
+    function init() {
+        loadProfiles();
+        if (profiles.length > 0) {
+            switchTo('plan');
+            renderTable();
+        } else {
+            switchTo('input');
+        }
+    }
+
+
+    /* --------------------- UI/Control State Management --------------------- */
+    
+    function updateControlStates() {
+        // Update Export/Copy buttons
+        btnExport.disabled = !isRouteCalculated;
+        btnCopyToClipboard.disabled = !isRouteCalculated;
+        
+        // Show/Hide recompute button (always visible if route was calculated)
+        if (isRouteCalculated) {
+            btnRecompute.style.display = 'inline-flex';
+            // Also enable Google/Apple map buttons
+            document.getElementById('btnOpenGoogle').disabled = false;
+            document.getElementById('btnOpenApple').disabled = false;
+        } else {
+            btnRecompute.style.display = 'none';
+            document.getElementById('btnOpenGoogle').disabled = true;
+            document.getElementById('btnOpenApple').disabled = true;
+        }
+
+        // Show/Hide missing data warning
+        const missingCount = profiles.filter(p => p.status === 'missing').length;
+        if (missingCount > 0) {
+             missingDataWarning.style.display = 'block';
+             btnCompute.disabled = false; // Allow compute, but warn
+             btnCompute.textContent = `חשב מסלול (${missingCount} חסרים)`;
+        } else {
+             missingDataWarning.style.display = 'none';
+             btnCompute.disabled = false; 
+             btnCompute.textContent = 'חשב מסלול (Time-Aware)';
+        }
+    }
+
+
+    /* --------------------- File I/O (Export/Import) --------------------- */
+    
+    btnExport.onclick = () => {
+        if (!isRouteCalculated) {
+             showModal("לא ניתן לייצא לפני חישוב מסלול תקין.");
+             return;
+        }
+
+        // Prepare data for export (remove 'raw' field to keep it clean)
+        const exportProfiles = profiles.map(({ raw, ...rest }) => rest);
+        
+        // Export the whole state for full recovery
+        const exportState = {
+             profiles: exportProfiles,
+             isRouteCalculated: true,
+             startAddress: startAddressInput.value.trim()
+        };
+
+        const dataStr = JSON.stringify(exportState, null, 2);
+        const blob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `road_planner_profiles_${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showModal(`יוצאו ${exportProfiles.length} פרופילים לקובץ JSON.`);
+    };
+
+    btnImport.onchange = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                
+                if (importedData && Array.isArray(importedData.profiles)) {
+                    profiles = importedData.profiles;
+                    isRouteCalculated = importedData.isRouteCalculated || false;
+                    startAddressInput.value = importedData.startAddress || '';
+
+                    profiles.forEach(p => p.status = determineProfileStatus(p)); // Re-validate status
+                    sortProfiles();
+                    saveProfiles();
+                    switchTo('plan');
+                    renderTable();
+                    
+                    showModal(`יובאו ${profiles.length} פרופילים בהצלחה!`);
+                } else {
+                    showModal("פורמט קובץ JSON אינו תקין או חסר שדות חובה.");
+                }
+            } catch (error) {
+                console.error("Import error:", error);
+                showModal("שגיאה בטעינת הקובץ. ודא שמדובר בקובץ JSON תקין.");
+            } finally {
+                 btnImport.value = ''; // Clear file input
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    btnCopyToClipboard.onclick = async () => {
+        if (!isRouteCalculated || profiles.length === 0) {
+            showModal("אנא חשב מסלול תחילה לפני העתקה.");
+            return;
+        }
+
+        let clipboardText = `--- מסלול מתוכנן (${new Date().toLocaleDateString('he-IL')}) ---\n`;
+        clipboardText += `נקודת התחלה: ${startAddressInput.value.trim() || 'מיקום נוכחי'}\n\n`;
+        
+        const numberedProfiles = profiles.filter(p => p.status !== 'canceled' && p.status !== 'missing');
+
+        numberedProfiles.forEach((p, index) => {
+             const eta = p.eta ? minutesToTimeDisplay(p.eta) : 'טרם חושב';
+             const lateWarning = p.isLate ? ' ⚠️ (איחור!)' : '';
+             const timeWindow = p.timeWindow ? ` (${minutesToTimeDisplay(p.timeWindow.startMin)}-${minutesToTimeDisplay(p.timeWindow.endMin)})` : '';
+             const statusEmoji = { pending: '🟡', enroute: '🔵', done: '🟢', canceled: '🔴', missing: '⚪' }[p.status] || '⚪';
+
+             clipboardText += `${index + 1}. ${statusEmoji} ${p.name} (הגעה: ${eta})${timeWindow}${lateWarning}\n`;
+             clipboardText += `   כתובת: ${p.address}\n`;
+             if (p.phone) clipboardText += `   טלפון: ${p.phone}\n`;
+             clipboardText += `\n`;
+        });
+        
+        const otherProfiles = profiles.filter(p => p.status === 'canceled' || p.status === 'missing');
+        if (otherProfiles.length > 0) {
+             clipboardText += `\n--- פרופילים שלא נכללו במסלול (${otherProfiles.length}) ---\n`;
+             otherProfiles.forEach(p => {
+                 const reason = p.status === 'canceled' ? 'בוטל' : 'חסר מידע';
+                 clipboardText += `* ${p.name} (סטטוס: ${reason})\n`;
+             });
+        }
+
+        clipboardText += '-----------------------------------';
+
+        try {
+            await navigator.clipboard.writeText(clipboardText);
+            showModal('המסלול המלא הועתק ללוח ההעתקות. ניתן להדביק אותו בוואטסאפ!');
+        } catch (err) {
+            console.error('Copy failed:', err);
+            showModal('שגיאה בהעתקה או שלא ניתנה הרשאה. אנא העתק ידנית את הטקסט הבא:\n\n' + clipboardText);
+        }
+    };
+
+
+    /* --------------------- Time-Aware TSP Algorithm (Heuristic) --------------------- */
+    
+    function getDuration(origin, destination) {
+        const key = `${origin}|${destination}`;
+        return distanceMatrix[key] || null;
+    }
+
+    async function fetchDistanceMatrix(origins, destinations) {
+        if (!mapsLoaded) throw new Error("Google Maps API not loaded.");
+        if (origins.length === 0 || destinations.length === 0) return;
+        
+        // Split into chunks if necessary (max 25 elements per request)
+
+        const response = await distanceMatrixService.getDistanceMatrix({
+             origins: origins,
+             destinations: destinations,
+             travelMode: google.maps.TravelMode.DRIVING,
+             unitSystem: google.maps.UnitSystem.METRIC,
+        });
+
+        distanceMatrix = {};
+        for (let i = 0; i < origins.length; i++) {
+            for (let j = 0; j < destinations.length; j++) {
+                const element = response.rows[i].elements[j];
+                const key = `${origins[i]}|${destinations[j]}`;
+                distanceMatrix[key] = {
+                    duration: element.duration ? element.duration.value : null,
+                    distance: element.distance ? element.distance.value : null
+                };
+            }
+        }
+    }
+
+    /**
+     * Calculates the cost of moving from originAddr (departureTimeMinutes) to destinationProfile.
+     * Cost includes travel time, waiting time, and HUGE penalties for lateness.
+     */
+    function calculateCost(originAddr, destinationProfile, currentDepartureTime) {
+        const cached = getDuration(originAddr, destinationProfile.address);
+        if (!cached || !cached.duration) return { cost: Infinity, eta: null, departure: null, isLate: false }; 
+
+        const travelTimeSeconds = cached.duration;
+        const travelTimeMinutes = Math.ceil(travelTimeSeconds / 60);
+
+        // 1. Calculate ETA *before* service time
+        let etaMinutes = currentDepartureTime + travelTimeMinutes;
+        let cost = travelTimeMinutes;
+        let isLate = false;
+        let waitTime = 0;
+
+
+        // 2. Handle Time Window
+        if (destinationProfile.timeWindow) {
+            const startMin = destinationProfile.timeWindow.startMin;
+            const endMin = destinationProfile.timeWindow.endMin;
+            
+            // Adjust start/end window for day roll-over (relative to current departure time)
+            let currentDayStartMin = startMin;
+            let currentDayEndMin = endMin;
+            
+            // Shift the time window to be on the same "day" cycle as the current departure time
+            // Ensure the window is relevant to the current time, usually starting slightly before or after
+            while (currentDayStartMin < currentDepartureTime - 60) { // Keep start within 1 hour before departure
+                 currentDayStartMin += 24 * 60;
+                 currentDayEndMin += 24 * 60;
+            }
+            if (currentDayEndMin < currentDayStartMin) currentDayEndMin += 24 * 60;
+
+
+            // A. EARLY ARRIVAL (Waiting Time)
+            if (etaMinutes < currentDayStartMin) {
+                 waitTime = currentDayStartMin - etaMinutes;
+                 etaMinutes = currentDayStartMin; // Arrival time effectively becomes the start of the window
+                 cost += waitTime; // Add waiting time to the cost (as a "cost" to the driver)
+            }
+
+            // B. LATE ARRIVAL (Penalty)
+            if (etaMinutes > currentDayEndMin) {
+                 const lateMinutes = etaMinutes - currentDayEndMin;
+                 // HUGE penalty to deter this path
+                 cost += lateMinutes * LATE_PENALTY_MULTIPLIER;
+                 isLate = true;
+            }
+        }
+        
+        // 3. Add Service Time
+        const serviceTimeMinutes = Math.ceil(SERVICE_TIME_SECONDS / 60);
+        const departureTimeMinutes = etaMinutes + serviceTimeMinutes;
+        
+        return {
+            cost: cost, 
+            eta: etaMinutes, 
+            departure: departureTimeMinutes,
+            isLate: isLate,
+            waitTime: waitTime
+        };
+    }
+
+    // Nearest Neighbor Heuristic with Time Window Optimization
+    async function findBestRoute(startAddress, currentProfiles) {
+        if (currentProfiles.length === 0) return [];
+
+        let unvisited = [...currentProfiles];
+        let bestRoute = [];
+        let currentAddress = startAddress;
+        
+        // Find the current time in minutes from midnight 
+        const now = new Date();
+        const currentTimeMinutes = now.getHours() * 60 + now.getMinutes(); 
+        let currentDepartureTime = currentTimeMinutes;
+
+        // Clear previous ETA/LATE flags
+        currentProfiles.forEach(p => { 
+            p.eta = null;
+            p.isLate = false;
+        });
+
+        while (unvisited.length > 0) {
+            let bestNextStop = null;
+            let minCost = Infinity;
+
+            for (const profile of unvisited) {
+                const result = calculateCost(currentAddress, profile, currentDepartureTime);
+                
+                if (result.cost < minCost) {
+                    minCost = result.cost;
+                    bestNextStop = { profile, result };
+                }
+            }
+
+            if (bestNextStop) {
+                const { profile, result } = bestNextStop;
+                
+                profile.eta = result.eta; 
+                profile.isLate = result.isLate;
+                bestRoute.push(profile);
+
+                currentAddress = profile.address;
+                currentDepartureTime = result.departure;
+                unvisited = unvisited.filter(p => p.id !== profile.id);
+
+            } else {
+                 console.warn("Stuck finding next stop. Adding remaining unvisited profiles to the end.");
+                 bestRoute.push(...unvisited);
+                 break; 
+            }
+        }
+
+        return bestRoute;
+    }
+
+
+    /* --------------------- Main Compute Function --------------------- */
+    async function computeRouteFromManualOrCurrentLocation() {
+        const relevantProfiles = profiles.filter(p => p.status !== 'canceled' && p.status !== 'missing');
+        
+        if (relevantProfiles.length === 0) {
+             if (profiles.some(p => p.status === 'missing')) {
+                 const confirm = await showModal('ישנם פרופילים חסרים. האם ברצונך להמשיך לחשב רק את הפרופילים התקינים?', true);
+                 if (!confirm) {
+                     return;
+                 }
+             } else {
+                 return showModal('אין פרופילים שניתן לחשב (כולם מבוטלים או חסרים).');
+             }
+        }
+
+        computeText.textContent = 'מחשב מסלול...';
+        computeSpinner.style.display = 'inline-block';
+        btnCompute.disabled = true;
+
+        await ensureMapsLoaded();
+        if (!mapsLoaded || !distanceMatrixService) {
+             computeText.textContent = 'חשב מסלול (Time-Aware)';
+             computeSpinner.style.display = 'none';
+             btnCompute.disabled = false;
+             return showModal('שגיאה: שירותי המפות של Google לא נטענו כראוי. בדוק את מפתח ה-API ואת החיבור לרשת.');
+        }
+
+        const startAddress = startAddressInput.value.trim() || "Current Location";
+        const allAddresses = [startAddress, ...relevantProfiles.map(p => p.address)];
+        const uniqueAddresses = [...new Set(allAddresses.filter(a => a))];
+        
+        try {
+             // 1. Cache distances 
+             await fetchDistanceMatrix(uniqueAddresses, uniqueAddresses);
+
+             // 2. Find the best route using the Time-Aware heuristic
+             const finalRoute = await findBestRoute(startAddress, relevantProfiles);
+             
+             // 3. Merge and update global state
+             
+             // Identify all non-relevant profiles
+             const nonRelevantProfiles = profiles.filter(p => p.status === 'canceled' || p.status === 'missing');
+             
+             // Final profiles are the calculated route + non-relevant at the end
+             profiles = [...finalRoute, ...nonRelevantProfiles];
+             
+             // Clear ETA for non-relevant profiles
+             nonRelevantProfiles.forEach(p => { p.eta = null; p.isLate = false; });
+             
+             isRouteCalculated = true; // Mark as calculated
+             saveProfiles();
+
+             // 4. Render results
+             renderTable();
+             renderMap(startAddress, profiles.filter(p => p.status !== 'canceled' && p.status !== 'missing').map(p => p.address));
+
+             mapFullEl.style.display = 'block';
+             
+             showModal(`המסלול חושב בהצלחה. סה"כ ${finalRoute.length} יעדים. ${nonRelevantProfiles.length} לא נכללו.`);
+
+        } catch (error) {
+             console.error("Route calculation failed:", error);
+             showModal('חישוב המסלול נכשל. ודא שהכתובות חוקיות והמפתח של Google Maps תקין: ' + error.message);
+        } finally {
+            computeText.textContent = 'חשב מסלול (Time-Aware)';
+            computeSpinner.style.display = 'none';
+            btnCompute.disabled = false;
+            updateControlStates();
+        }
+    }
+
+
+    /* --------------------- Map Rendering --------------------- */
+
+    function renderMap(startAddress, waypoints) {
+        if (!directionsService || !directionsRenderer) return;
+
+        const filteredWaypoints = waypoints.filter(addr => addr !== startAddress);
+        const googleWaypoints = filteredWaypoints.map(addr => ({
+            location: addr,
+            stopover: true
+        }));
+        
+        // Destination is the last waypoint or startAddress if only one stop
+        const destination = filteredWaypoints.length > 0 ? filteredWaypoints[filteredWaypoints.length - 1] : startAddress;
+        const routeWaypoints = googleWaypoints.slice(0, -1);
+        
+        // If the start address is "Current Location" but not geolocated, use the first waypoint as origin
+        let origin = startAddress;
+        if (origin === "Current Location" && filteredWaypoints.length > 0) {
+             origin = filteredWaypoints[0];
+        }
+
+
+        directionsService.route({
+            origin: origin,
+            destination: destination,
+            waypoints: routeWaypoints,
+            optimizeWaypoints: false, 
+            travelMode: google.maps.TravelMode.DRIVING
+        })
+        .then((response) => {
+            directionsRenderer.setDirections(response);
+        })
+        .catch((e) => {
+            console.error('Directions request failed due to ' + e);
+            if (mapFull) mapFull.setCenter({lat: 31.0461, lng: 34.8516});
+        });
+    }
+    
+    document.getElementById('btnOpenGoogle').onclick = () => {
+         openInMaps('google');
+    };
+    document.getElementById('btnOpenApple').onclick = () => {
+         openInMaps('apple');
+    };
+
+    function openInMaps(app) {
+         if (!isRouteCalculated || profiles.length === 0) return;
+         
+         const relevant = profiles.filter(p => p.status !== 'canceled' && p.status !== 'missing').map(p => p.address);
+         const start = startAddressInput.value.trim() || relevant[0];
+         const waypoints = relevant.slice(1);
+         
+         if (app === 'google') {
+             const waypointsStr = waypoints.join('/');
+             const url = `https://www.google.com/maps/dir/${encodeURIComponent(start)}/${waypointsStr.split('/').map(encodeURIComponent).join('/')}`;
+             window.open(url, '_blank');
+         } else if (app === 'apple') {
+             // Apple Maps URL scheme is complex for multiple waypoints, often requires just source/dest or a search.
+             // We'll create a single route search for the first few stops.
+             const stops = [start, ...relevant.slice(0, 3)].join(' to ');
+             const url = `http://maps.apple.com/?daddr=${encodeURIComponent(stops)}&dirflg=d`;
+             window.open(url, '_blank');
+         }
+    }
+
+
+    /* --------------------- Sorting --------------------- */
+    
+    function sortProfiles(newlyModifiedId = null) {
+        const relevantProfiles = profiles.filter(p => p.status !== 'canceled' && p.status !== 'missing');
+        const nonRelevantProfiles = profiles.filter(p => p.status === 'canceled' || p.status === 'missing');
+
+        // Preserve the order of the relevant profiles (which is the route order)
+        // Ensure non-relevant profiles are pushed to the end
+        profiles = [...relevantProfiles, ...nonRelevantProfiles];
+    }
+
+
+    /* --------------------- UI Rendering & Handlers --------------------- */
+    
+    function renderTable() {
+        profilesBody.innerHTML = '';
+        if (profiles.length === 0) return;
+
+        // Ensure CANCELED and MISSING are at the end before rendering
+        sortProfiles();
+        
+        let counter = 0; // Only count non-canceled/non-missing profiles for the numbering
+        
+        profiles.forEach((profile, index) => {
+            const isRelevant = profile.status !== 'canceled' && profile.status !== 'missing';
+            if (isRelevant) counter++;
+
+            const displayIndex = isRelevant ? counter : '❌';
+            const isStartPoint = displayIndex === 1 && isRouteCalculated;
+            
+            const etaDisplay = profile.eta ? minutesToTimeDisplay(profile.eta) : (isRouteCalculated ? 'בחישוב...' : 'לחץ "חשב מסלול"');
+            const rowClass = isStartPoint ? 'draggable-row start-point-name' : 'draggable-row';
+
+            const tr = document.createElement('tr');
+            tr.className = `profile-row ${rowClass}`;
+            tr.id = `row_${profile.id}`;
+            tr.setAttribute('data-id', profile.id);
+            tr.draggable = isRelevant; // Only allow drag/drop for relevant profiles
+            tr.onclick = (e) => handleRowClick(e, profile);
+
+            const timeWindowContent = profile.timeWindow ? 
+                `${minutesToTimeDisplay(profile.timeWindow.startMin)} - ${minutesToTimeDisplay(profile.timeWindow.endMin)}` : 
+                'אין חלון זמן';
+            
+            const timeWindowClass = profile.timeWindow ? 'time-window-valid' : 'time-window-missing';
+            
+            // Highlight ETA in red if late, or default if on time/early (waiting time is part of on-time)
+            const etaClass = (profile.isLate) ? 'eta-late' : '';
+            
+            // Name color based on status (pending = no color)
+            const nameClass = `status-name-${profile.status}`;
+
+
+            tr.innerHTML = `
+                <td>${isStartPoint ? '📍' : displayIndex}</td>
+                <td>
+                    <span class="${nameClass}">${profile.name}</span>
+                </td>
+                <td>${profile.address}</td>
+                <td class="${timeWindowClass}">${timeWindowContent}</td>
+                <td class="${etaClass}">${etaDisplay}</td>
+            `;
+            profilesBody.appendChild(tr);
+
+            if (expandedRowId === profile.id) {
+                const detailRow = createDetailRow(profile);
+                profilesBody.appendChild(detailRow);
+            }
+        });
+
+        addDragDropListeners();
+    }
+    
+    function createDetailRow(profile) {
+        const detailRow = document.createElement('tr');
+        detailRow.className = 'detail-row';
+        
+        const statusSelectOptions = `
+            <option value="pending" ${profile.status === 'pending' ? 'selected' : ''}>ממתין</option>
+            <option value="missing" ${profile.status === 'missing' ? 'selected' : ''}>חסר</option>
+            <option value="enroute" ${profile.status === 'enroute' ? 'selected' : ''}>בדרך</option>
+            <option value="done" ${profile.status === 'done' ? 'selected' : ''}>בוצע</option>
+            <option value="canceled" ${profile.status === 'canceled' ? 'selected' : ''}>בוטל</option>
+        `;
+
+        detailRow.innerHTML = `<td colspan="5">
+            <div class="detail-content">
+                <div class="detail-field">
+                    <label for="name_${profile.id}">שם</label>
+                    <input type="text" id="name_${profile.id}" value="${profile.name}" data-field="name">
+                </div>
+                <div class="detail-field">
+                    <label for="address_${profile.id}">כתובת מלאה</label>
+                    <input type="text" id="address_${profile.id}" value="${profile.address}" data-field="address">
+                </div>
+                <div class="detail-field">
+                    <label for="phone_${profile.id}">טלפון</label>
+                    <input type="tel" id="phone_${profile.id}" value="${profile.phone}" data-field="phone">
+                </div>
+                <div class="detail-field">
+                    <label for="time_${profile.id}">חלון זמנים (Text)</label>
+                    <input type="text" id="time_${profile.id}" value="${profile.timeWindowRaw || ''}" data-field="timeWindowRaw" placeholder="09:00-12:00">
+                </div>
+                <div class="detail-field">
+                    <label for="status_${profile.id}">סטטוס</label>
+                    <select id="status_${profile.id}" data-field="status" class="status-select status-${profile.status}">
+                        ${statusSelectOptions}
+                    </select>
+                </div>
+
+                <div class="controls">
+                    <button id="btnRemove_${profile.id}" class="secondary">הסר</button>
+                    <button id="btnSave_${profile.id}" class="start-button">שמור</button>
+                </div>
+            </div>
+        </td>`;
+
+        const detailContent = detailRow.querySelector('.detail-content');
+        detailContent.querySelector(`#btnSave_${profile.id}`).onclick = () => saveProfileDetails(profile.id, detailContent);
+        detailContent.querySelector(`#btnRemove_${profile.id}`).onclick = () => removeProfile(profile.id);
+        
+        // Update select box class on change
+        detailContent.querySelector(`#status_${profile.id}`).onchange = (e) => {
+            const selectEl = e.target;
+            selectEl.className = `status-select status-${selectEl.value}`;
+        };
+
+        return detailRow;
+    }
+    
+    function saveProfileDetails(id, container) {
+        const profile = profiles.find(p => p.id === id);
+        if (!profile) return;
+        
+        container.querySelectorAll('input, select').forEach(element => {
+            const field = element.dataset.field;
+            if (field) {
+                profile[field] = element.value;
+            }
+        });
+
+        // Re-parse time window from raw text input
+        profile.timeWindowRaw = profile.timeWindowRaw || '';
+        profile.timeWindow = parseTimeWindow(profile.timeWindowRaw);
+        
+        // Re-determine status based on new data
+        profile.status = determineProfileStatus(profile);
+        
+        // If status changed to 'canceled' or 'missing', clear ETA and reset calc
+        if (profile.status === 'canceled' || profile.status === 'missing') {
+             isRouteCalculated = false;
+             profiles.forEach(p => p.eta = null); // Reset all ETA after change
+             mapFullEl.style.display = 'none';
+        }
+        
+        // If address/name changed, or status changed from non-relevant to relevant, reset calculation state
+        // Simplification: always reset on save to guarantee fresh route
+        profile.eta = null;
+        profile.isLate = false;
+        profiles.forEach(p => p.eta = null); // Reset all ETA after modification
+        isRouteCalculated = false;
+        mapFullEl.style.display = 'none';
+
+        // Re-sort profiles to ensure CANCELED/MISSING are at the end
+        sortProfiles(id);
+
+        saveProfiles();
+        renderTable();
+        showModal('הפרטים נשמרו בהצלחה. המסלול המחושב אופס, אנא לחץ "חשב מסלול" מחדש.');
+    }
+
+    function removeProfile(id) {
+        profiles = profiles.filter(p => p.id !== id);
+        expandedRowId = null;
+        
+        // Reset calculation state
+        isRouteCalculated = false;
+        profiles.forEach(p => p.eta = null);
+        mapFullEl.style.display = 'none';
+        
+        saveProfiles();
+        renderTable();
+        showModal('הפרופיל הוסר.');
+    }
+
+    function handleRowClick(e, profile) {
+        // Prevent click if clicking on an interactive element inside the row
+        if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.closest('.detail-row')) return;
+        
+        // Handle phone call on clicking the name/status area if a phone number exists
+        if (e.target.closest('td:nth-child(2)') && profile.phone) {
+            // Optional: Implement phone banner here if needed
+            return;
+        }
+
+        if (expandedRowId === profile.id) {
+            expandedRowId = null;
+        } else {
+            expandedRowId = profile.id;
+        }
+        renderTable();
+    }
+    
+    // Drag/Drop functions 
+    function addDragDropListeners() {
+        const rows = profilesBody.querySelectorAll('.draggable-row');
+        rows.forEach(row => {
+            if (row.draggable) {
+                 row.addEventListener('dragstart', handleDragStart);
+                 row.addEventListener('dragover', handleDragOver);
+                 row.addEventListener('dragleave', handleDragLeave);
+                 row.addEventListener('drop', handleDrop);
+                 row.addEventListener('dragend', handleDragEnd);
+            }
+        });
+    }
+
+    function handleDragStart(e) {
+        document.querySelectorAll('.drag-over').forEach(r => r.classList.remove('drag-over'));
+        draggedProfile = profiles.find(p => p.id === e.currentTarget.dataset.id);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', e.currentTarget.dataset.id);
+        
+        setTimeout(() => {
+            e.currentTarget.classList.add('dragging');
+        }, 0);
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const targetRow = e.currentTarget;
+
+        if (targetRow.classList.contains('dragging') || targetRow.classList.contains('detail-row') || !targetRow.draggable) return;
+
+        profilesBody.querySelectorAll('.drag-over').forEach(r => r.classList.remove('drag-over'));
+        targetRow.classList.add('drag-over');
+    }
+
+    function handleDragLeave(e) {
+        e.currentTarget.classList.remove('drag-over');
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        e.currentTarget.classList.remove('drag-over');
+
+        const droppedId = e.dataTransfer.getData('text/plain');
+        const targetId = e.currentTarget.dataset.id;
+        
+        if (droppedId === targetId) return;
+
+        const relevantProfiles = profiles.filter(p => p.status !== 'canceled' && p.status !== 'missing');
+        const droppedIndex = relevantProfiles.findIndex(p => p.id === droppedId);
+        const targetIndex = relevantProfiles.findIndex(p => p.id === targetId);
+        
+        if (droppedIndex === -1 || targetIndex === -1) return;
+        
+        // Perform the swap only on the relevant array
+        const [removed] = relevantProfiles.splice(droppedIndex, 1);
+        relevantProfiles.splice(targetIndex, 0, removed);
+        
+        // Rebuild the main profiles array
+        const nonRelevantProfiles = profiles.filter(p => p.status === 'canceled' || p.status === 'missing');
+        profiles = [...relevantProfiles, ...nonRelevantProfiles];
+
+        
+        // Reset calculation if order is changed
+        isRouteCalculated = false;
+        profiles.forEach(p => p.eta = null);
+        mapFullEl.style.display = 'none';
+        
+        saveProfiles(); // Save order change
+        renderTable();
+    }
+
+    function handleDragEnd(e) {
+        e.currentTarget.classList.remove('dragging');
+        profilesBody.querySelectorAll('.drag-over').forEach(r => r.classList.remove('drag-over'));
+        draggedProfile = null;
+    }
+
+
+    /* --------------------- Event Listeners --------------------- */
+    document.getElementById('btnPaste').onclick = async () => {
+        try {
+            // FIX: Use navigator.clipboard.readText() which requires secure context (HTTPS/localhost)
+            const text = await navigator.clipboard.readText();
+            smsInput.value = text;
+            showModal('טקסט הועתק בהצלחה מלוח ההעתקות. לחץ "טעינת מידע" כדי לנתח.');
+        } catch (err) {
+            console.error("Clipboard access failed:", err);
+            // Fallback for failed clipboard access
+            showModal('שגיאה בגישה ללוח ההעתקות. אנא הדבק את טקסט ה-SMS באופן ידני בשדה הטקסט למעלה.');
+        }
+    };
+    
+    document.getElementById('btnParseAndSwitch').onclick = () => {
+        const txt = smsInput.value;
+        const result = parseBatch(txt);
+        const parsed = result.parsed;
+        const remainingText = result.remaining;
+
+        if (parsed.length === 0) {
+            showModal('לא נמצאו פרופילים חוקיים לניתוח. אנא ודא שהקלט מכיל כתובת מלאה (כולל מספר בית, רחוב, עיר, מדינה ומיקוד).');
+            return;
+        }
+
+        loadProfiles(); 
+        let added = 0;
+        parsed.forEach(p => {
+            // Simple check to prevent duplicates based on address and name
+            if (!profiles.some(x => x.address === p.address && x.name === p.name)) {
+                profiles.push(p);
+                added++;
+            }
+        });
+        
+        // Reset calculation state since new profiles were added
+        isRouteCalculated = false;
+        profiles.forEach(p => p.eta = null);
+        sortProfiles();
+        
+        saveProfiles();
+
+        showModal(`נוספו פרופילים: ${added}. הפרופילים הקודמים נשמרו.`);
+        smsInput.value = remainingText;
+        switchTo('plan');
+    };
+    
+    document.getElementById('btnClear').onclick = async () => {
+        const result = await showModal('מחק את כל הפרופילים והנתונים מהדפדפן?', true);
+        if (result) {
+            profiles = [];
+            isRouteCalculated = false;
+            saveProfiles();
+            renderTable();
+            mapFullEl.style.display = 'none';
+            startAddressInput.value = '';
+            switchTo('input');
+        }
+    };
+    document.getElementById('btnLoadExample').onclick = () => {
+        smsInput.value = `New job #500027346
+Shaneaqua Munlin (Owner) 
+(2156802253) 
+12 Pittman Pl, Winslow Township, New Jersey 08081 
+Chimney Inspection 
+Level 2 $149
+10/10
+12 to 2 pm please call 45 prior to arrival!!!
+call Ms. sharmon (Realtor) she will be near the location waiting for your arrival. 
+2156802253
+Call Ms. Munlin (owner)
+9176271934 for payment after service.
+Please call customer w/ ETA ASAP. Thank you and Good luck! 
+October 10, 2025, 12:00 pm
+---
+New job #500027227
+Alford Dilmore 
+(7324913156) 
+24 Bullock Rd, Chadds Ford, Pennsylvania 19317 
+FRI OCT 10 8-11am
+
+WAITING PAYMENT 
+October 10, 2025, 8:00 am
+---
+New job #500027390
+Amy Smith 
+(8564485795) 
+6 Bradford Dr, Shamong, New Jersey 08088 
+chimney inspection 99$ 
+October 10, 2025, 8:00 am
+---
+New job #500027224
+Chenxing Zheng 
+(6178007665) 
+420 W Oakmeade Dr, Wilmington, Delaware 19810 
+level 1 inspection $99 for cleaning. 10/10 2-5pm
+call Chenxing Zheng - land lord 6178007665
+
+Dionne - Tenant
+
+30 min call before arrival. 
+October 10, 2025, 2:00 pm`;
+        showModal('דוגמאות טעונות בשדה הטקסט. לחץ "טעינת מידע" כדי לנתח.');
+    };
+    document.getElementById('btnSwitchToInput').onclick = () => {
+         saveProfiles(); 
+         switchTo('input');
+    };
+    document.getElementById('btnCompute').onclick = () => computeRouteFromManualOrCurrentLocation();
+    document.getElementById('btnRecompute').onclick = () => computeRouteFromManualOrCurrentLocation();
+    
+    async function ensureMapsLoaded() { return new Promise(resolve => { if(mapsLoaded) resolve(); else setTimeout(()=>resolve(), 1000); }); }
+
+    // Logic for immediate update/reset on input change (as requested)
+    startAddressInput.addEventListener('change', () => {
+        isRouteCalculated = false;
+        profiles.forEach(p => p.eta = null);
+        mapFullEl.style.display = 'none';
+        saveProfiles();
+        renderTable();
+    });
+
+
+    document.addEventListener('DOMContentLoaded', init);
+    
+    // Wire up modal closing handlers
+    document.querySelector('#alertModal .close-button').onclick = () => {
+        document.getElementById('alertModal').style.display = 'none';
+        if (currentModalResolve) {
+            currentModalResolve(false);
+        }
+    };
+    window.onclick = (event) => {
+        if (event.target === document.getElementById('alertModal')) {
+            document.getElementById('alertModal').style.display = 'none';
+            if (currentModalResolve) {
+                currentModalResolve(false);
+            }
+        }
+    };
+</script>
+</body>
+</html>
